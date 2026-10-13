@@ -12,6 +12,8 @@ test('validates service identity and rejects results belonging to another work',
   checkService({service:'douyin-local-transcription',protocol:1,ready:true});
   assert.throws(()=>checkService({service:'other',ready:true}));
   assert.throws(()=>checkService({service:'douyin-local-transcription',protocol:1,ready:false}));
+  assert.throws(()=>checkService({service:'douyin-local-transcription',protocol:1,ready:true},true),/关闭原服务窗口/);
+  checkService({service:'douyin-local-transcription',protocol:1,ready:true,videoReuse:true},true);
   const job={id:'a'.repeat(32),workId:id,status:'complete',text:'文案',srt:'字幕',elapsedSeconds:1};
   assert.equal(checkJob(job,id),job);
   assert.throws(()=>checkJob(job,'1111111111111111111'));
@@ -27,4 +29,5 @@ test('local requests never send credentials and surface service and connection f
   });
   await assert.rejects(localRequest('/health',undefined,async()=>{throw new TypeError('Failed to fetch');}),/启动本地文案服务/);
   await assert.rejects(localRequest('/jobs',payload,async()=>({ok:false,json:async()=>({error:'已有任务'})})),/已有任务/);
+  await assert.rejects(localRequest('/jobs',payload,async()=>({ok:false,json:async()=>({error:'文件丢失',code:'SOURCE_MISSING'})})),error=>error.code === 'SOURCE_MISSING');
 });

@@ -14,15 +14,20 @@ export async function localRequest(path, payload, fetcher = fetch) {
       ...(payload === undefined ? {} : {headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)})
     });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || '本地文案服务返回错误。');
+    if (!response.ok) {
+      const error = new Error(result.error || '本地文案服务返回错误。');
+      error.code = result.code;
+      throw error;
+    }
     return result;
   } catch (error) {
     if (error.name === 'TypeError' || error.name === 'AbortError') throw new Error('无法连接本地文案服务。请双击项目 outputs 中的“启动本地文案服务.command”，保持服务窗口打开后重试。');
     throw error;
   } finally { clearTimeout(timer); }
 }
-export function checkService(value) {
+export function checkService(value, requireVideoReuse = false) {
   if (value?.service !== 'douyin-local-transcription' || value.protocol !== 1) throw new Error('本地端口不是匹配的文案服务。');
+  if (requireVideoReuse && value.videoReuse !== true) throw new Error('本地文案服务需要更新。请关闭原服务窗口，再双击项目 outputs 中的“启动本地文案服务.command”后重试。');
   if (!value.ready) throw new Error('本地模型或音频工具未准备好，请查看服务说明。');
 }
 export function checkJob(job, expectedId) {

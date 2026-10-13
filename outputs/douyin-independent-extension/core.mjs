@@ -37,7 +37,7 @@ export function mediaURL(value) {
   } catch { return null; }
 }
 
-export function selectMP4(work, expectedId, maxHeight = 720) {
+export function mp4Candidates(work, expectedId, maxHeight = 720) {
   if (!expectedId || work?.id !== expectedId) throw new Error('页面作品与目标链接不一致，已停止。');
   if (!Number.isFinite(work.durationMs) || work.durationMs <= 0) throw new Error('缺少有效作品时长。');
   const candidates = (Array.isArray(work.variants) ? work.variants : []).filter(v =>
@@ -48,10 +48,14 @@ export function selectMP4(work, expectedId, maxHeight = 720) {
   );
   if (!candidates.length) throw new Error('页面没有可直接保存的兼容 MP4；本原型不处理加密或分离音视频。');
   const preferred = candidates.filter(v => v.height <= maxHeight);
-  const pool = preferred.length ? preferred : candidates;
-  pool.sort((a, b) => preferred.length ? (b.height - a.height || b.size - a.size) : (a.height - b.height || b.size - a.size));
-  const selected = pool[0];
-  return {...selected, url: selected.urls.map(mediaURL).find(Boolean)};
+  const higher = candidates.filter(v => !(v.height <= maxHeight));
+  preferred.sort((a, b) => b.height - a.height || b.size - a.size);
+  higher.sort((a, b) => a.height - b.height || b.size - a.size);
+  return [...preferred, ...higher].map(v => ({...v, url: v.urls.map(mediaURL).find(Boolean)}));
+}
+
+export function selectMP4(work, expectedId, maxHeight = 720) {
+  return mp4Candidates(work, expectedId, maxHeight)[0];
 }
 
 export function filenameFor(work, candidate) {

@@ -21,23 +21,29 @@ MAX_BYTES = 2 * 1024 ** 3
 
 
 class RequestError(Exception):
-    def __init__(self, message, status=400):
+    def __init__(self, message, status=400, code=None):
         super().__init__(message)
         self.status = status
+        self.code = code
 
 
-def validate_source(payload, download_root):
+def validate_work(payload):
     if not isinstance(payload, dict):
         raise RequestError('请求格式不正确。')
     work_id = payload.get('workId', '')
     if not isinstance(work_id, str) or not re.fullmatch(r'\d{10,30}', work_id):
         raise RequestError('作品 ID 无效。')
-    size = payload.get('expectedBytes')
-    if type(size) is not int or not 0 < size <= MAX_BYTES:
-        raise RequestError('文件大小无效。')
     duration = payload.get('durationMs')
     if type(duration) not in (int, float) or not 0 < duration <= 3600000:
         raise RequestError('本地原型支持一小时以内的视频。')
+    return work_id, duration
+
+
+def validate_source(payload, download_root):
+    work_id, duration = validate_work(payload)
+    size = payload.get('expectedBytes')
+    if type(size) is not int or not 0 < size <= MAX_BYTES:
+        raise RequestError('文件大小无效。')
     value = payload.get('path')
     if not isinstance(value, str) or len(value) > 4096 or '\x00' in value:
         raise RequestError('文件路径无效。')
@@ -50,11 +56,49 @@ def validate_source(payload, download_root):
         raise RequestError('下载文件名与作品不一致。')
     try:
         info = path.stat()
+    except FileNotFoundError:
+        raise RequestError('下载文件不存在，请重新下载。', code='SOURCE_MISSING')
     except OSError:
-        raise RequestError('下载文件不存在，请重新下载。')
-    if not stat.S_ISREG(info.st_mode) or info.st_size != size:
-        raise RequestError('下载文件不完整或大小不一致。')
+        raise RequestError('无法读取本地视频，请检查文件权限。')
+    if not stat.S_ISREG(info.st_mode):
+        raise RequestError('仅处理普通视频文件。', code='SOURCE_NOT_FILE')
+    if info.st_size != size:
+        raise RequestError('下载文件不完整或大小不一致。', code='SOURCE_INCOMPLETE')
     return path, work_id, size, duration
+
+
+def find_source(payload, download_root):
+    work_id, duration = validate_work(payload)
+    variants = payload.get('variants')
+    if not isinstance(variants, list) or not 0 < len(variants) <= 128:
+        raise RequestError('视频规格无效。')
+    for variant in variants:
+        if (not isinstance(variant, dict) or type(variant.get('height')) is not int or
+                not 0 < variant['height'] <= 9999 or type(variant.get('expectedBytes')) is not int or
+                not 0 < variant['expectedBytes'] <= MAX_BYTES):
+            raise RequestError('视频规格无效。')
+    root = download_root.resolve()
+    try:
+        # Only this tool's download directory is searched, with an exact work ID.
+        paths = sorted(root.iterdir(), key=lambda path: path.name)
+    except FileNotFoundError:
+        return {'file': None}
+    except OSError:
+        raise RequestError('无法检查已下载的视频，请检查下载文件夹权限。')
+    for variant in variants:
+        name = re.compile(re.escape(work_id) + '_' + str(variant['height']) + r'p_.+\.mp4')
+        for path in paths:
+            if not name.fullmatch(path.name) or path.is_symlink():
+                continue
+            info = {**variant, 'workId': work_id, 'durationMs': duration, 'path': str(path)}
+            try:
+                validate_source(info, root)
+            except RequestError as exc:
+                if exc.code in ('SOURCE_MISSING', 'SOURCE_INCOMPLETE', 'SOURCE_NOT_FILE'):
+                    continue
+                raise
+            return {'file': info}
+    return {'file': None}
 
 
 def runtime_ready():
@@ -245,7 +289,7 @@ def make_handler(jobs, origin):
             try:
                 self.authorized()
                 if self.path == '/health':
-                    self.reply(200, {'service': 'douyin-local-transcription', 'protocol': 1, 'ready': runtime_ready()})
+                    self.reply(200, {'service': 'douyin-local-transcription', 'protocol': 1, 'ready': runtime_ready(), 'videoReuse': True})
                 elif re.fullmatch(r'/jobs/[0-9a-f]{32}', self.path):
                     self.reply(200, jobs.get(self.path.split('/')[-1]))
                 elif re.fullmatch(r'/jobs/[0-9a-f]{32}/audio', self.path):
@@ -267,7 +311,7 @@ def make_handler(jobs, origin):
         def do_POST(self):
             try:
                 self.authorized()
-                if self.path != '/jobs':
+                if self.path not in ('/jobs', '/videos/find'):
                     raise RequestError('接口不存在。', 404)
                 if self.headers.get('Content-Type') != 'application/json':
                     raise RequestError('只接受 JSON 请求。', 415)
@@ -284,9 +328,12 @@ def make_handler(jobs, origin):
                     payload = json.loads(self.rfile.read(length))
                 except (ValueError, OSError):
                     raise RequestError('请求内容无效。')
-                self.reply(202, jobs.start(payload))
+                if self.path == '/videos/find':
+                    self.reply(200, find_source(payload, jobs.download_root))
+                else:
+                    self.reply(202, jobs.start(payload))
             except RequestError as exc:
-                self.reply(exc.status, {'error': str(exc)})
+                self.reply(exc.status, {'error': str(exc), **({'code': exc.code} if exc.code else {})})
     return Handler
 
 

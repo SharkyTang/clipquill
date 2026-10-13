@@ -1,6 +1,7 @@
 import {shareURL, workIdFromURL, selectMP4, filenameFor, capturePage} from './core.mjs';
 import {readNormalPage} from './navigation.mjs';
 import {localRequest, localAudio, checkService, checkJob, completedFile} from './transcription.mjs';
+import {startVideoTranscription} from './video.mjs';
 import {createReview, timestamp} from './review.mjs';
 import {createDraft, saveableDraft, draftText, editFullText, editBlock, draftSegments, exportDraft} from './draft.mjs';
 import {migrateTerms, activeTerms} from './settings.mjs';
@@ -56,10 +57,13 @@ async function checkDownload(id) {
   } catch (error) { downloads.delete(id); clearTimeout(job.timer); job.reject(error); }
 }
 chrome.downloads.onChanged.addListener(delta => { if (downloads.has(delta.id)) checkDownload(delta.id); });
-async function saveVideo(work, quality = el('quality').value) {
-  const candidate = selectMP4(work, work.id, Number(quality));
+function showVideo(work, candidate) {
   el('result').hidden = false; el('title').textContent = work.title;
   el('facts').textContent = `${work.id} · ${(work.durationMs / 1000).toFixed(1)} 秒 · ${candidate.width} × ${candidate.height} · ${(candidate.size / 1024 ** 2).toFixed(1)} MiB`;
+}
+async function saveVideo(work, quality = el('quality').value) {
+  const candidate = selectMP4(work, work.id, Number(quality));
+  showVideo(work, candidate);
   el('downloadState').textContent = `网页下载入口：${work.webpageDownloadEnabled === true ? '开启' : work.webpageDownloadEnabled === false ? '关闭' : '未知'}。播放文件的访问结果以实际下载为准。`;
   const id = await chrome.downloads.download({url: candidate.url, filename: filenameFor(work, candidate), conflictAction: 'uniquify', saveAs: false});
   status('正在保存视频，完成后会自动继续。');
@@ -164,7 +168,7 @@ async function start(mode, existing = false, operation = null) {
   // Existing valid output remains available until a new completed result replaces it.
   try {
     const url = op.existing ? null : shareURL(op.link);
-    if (op.mode === 'transcribe') { status('正在连接本地文案服务…'); checkService(await localRequest('/health')); el('serviceHelp').hidden = true; }
+    if (op.mode === 'transcribe') { status('正在连接本地文案服务…'); checkService(await localRequest('/health'),true); el('serviceHelp').hidden = true; }
     let tab;
     if (op.existing) {
       if (!op.tabId) throw new Error('请先打开并选择目标抖音作品。');
@@ -172,10 +176,20 @@ async function start(mode, existing = false, operation = null) {
     } else tab = await chrome.tabs.create({url,active:false});
     const work = await readPage(tab.id,workIdFromURL(op.existing ? tab.url : url));
     if (op.mode === 'transcribe' && work.durationMs > 3600000) throw new Error('本地文案原型支持一小时以内的视频。');
-    const file = await saveVideo(work,op.quality);
-    if (op.mode === 'download') { el('downloadState').textContent = '视频已保存到“下载 / 抖音独立导出”，文件大小已核对。'; return status('视频已下载完成。可在下载文件夹查看。','complete'); }
-    status('视频已保存，正在提取文案…');
-    const job = checkJob(await localRequest('/jobs',{...file,terms:op.terms}),work.id);
+    if (op.mode === 'download') {
+      await saveVideo(work,op.quality);
+      el('downloadState').textContent = '视频已保存到“下载 / 抖音独立导出”，文件大小已核对。';
+      return status('视频已下载完成。可在下载文件夹查看。','complete');
+    }
+    status('正在检查已下载的视频…');
+    const job = checkJob(await startVideoTranscription(work,op.quality,op.terms,{
+      download:saveVideo,
+      onSource:({reused,candidate}) => {
+        showVideo(work,candidate);
+        el('downloadState').textContent = reused ? '正在使用已下载的完整视频，无需重复下载。' : '视频已保存到“下载 / 抖音独立导出”，文件大小已核对。';
+        status(reused ? '已复用本地视频，正在提取文案…' : '视频已保存，正在提取文案…');
+      }
+    }),work.id);
     const ref = {id:job.id,workId:work.id}; persist('lastTranscription',ref);
     resetTerms();
     await followJob(ref);
@@ -238,7 +252,7 @@ el('link').addEventListener('input',resetTerms);
 el('tabs').addEventListener('change',resetTerms);
 el('checkConnection').addEventListener('click',async() => {
   el('checkConnection').disabled = true; el('connectionState').textContent = '正在检查…';
-  try { checkService(await localRequest('/health')); el('connectionState').textContent = '文案服务已就绪，可以重试提取。'; }
+  try { checkService(await localRequest('/health'),true); el('connectionState').textContent = '文案服务已就绪，可以重试提取。'; }
   catch(error) { el('connectionState').textContent = error.message; }
   finally { el('checkConnection').disabled = false; }
 });
