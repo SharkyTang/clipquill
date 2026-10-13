@@ -5,6 +5,12 @@
   <p class="eyebrow">本地工具</p>
   <h1>保存视频，提取文案</h1>
   <p class="intro">粘贴抖音分享链接，或选择已打开的作品。视频和文案保存在这台电脑。</p>
+  <aside id="loginTip" aria-labelledby="loginTipTitle" hidden>
+    <p id="loginTipTitle"><strong>首次使用，建议先登录网页版抖音</strong></p>
+    <p class="hint">请在安装此扩展的同一个 Chrome 用户配置中登录。登录状态有效时无需重复登录；遇到登录或安全验证，工具会打开对应页面，请自行完成后返回重试。</p>
+    <div class="row"><button id="loginDouyin">打开抖音登录</button><button id="dismissLoginTip">知道了</button></div>
+    <p id="loginTipState" class="hint" role="status"></p>
+  </aside>
   <label for="link">视频分享链接</label>
   <textarea id="link" rows="2" placeholder="粘贴抖音链接或完整分享文字"></textarea>
   <div class="actions"><button id="start">下载视频</button><button id="transcribe" class="primary">提取文案</button></div>

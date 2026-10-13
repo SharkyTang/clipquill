@@ -73,7 +73,7 @@ export function capturePage() {
   const expected = modal || canonical;
   if (!/^\d{10,30}$/.test(expected || '')) return {error: '当前页面没有明确作品 ID。'};
   const nodes = document.querySelectorAll('script#RENDER_DATA[type="application/json"]');
-  if (nodes.length !== 1) return {error: '页面未提供初始化数据；请完成正常加载或登录后重试。'};
+  if (nodes.length !== 1) return {code: 'MISSING_INIT', error: '页面未提供初始化数据；请完成正常加载或登录后重试。'};
   const text = nodes[0].textContent || '';
   if (text.length > 16 * 1024 * 1024) return {error: '页面数据过大，已停止。'};
   let data;

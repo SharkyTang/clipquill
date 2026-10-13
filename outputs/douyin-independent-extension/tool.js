@@ -1,5 +1,4 @@
-import {shareURL, workIdFromURL, selectMP4, filenameFor, capturePage} from './core.mjs';
-import {readNormalPage} from './navigation.mjs';
+import {shareURL, workIdFromURL, selectMP4, filenameFor} from './core.mjs';
 import {localRequest, localAudio, checkService, checkJob, completedFile} from './transcription.mjs';
 import {startVideoTranscription} from './video.mjs';
 import {createReview, timestamp} from './review.mjs';
@@ -22,11 +21,12 @@ function fail(error) {
   const message = error.message || '处理失败，请重试。';
   status('未完成：' + message, 'error');
   el('retry').hidden = !retryAction;
+  if (Number.isInteger(error.tabId)) { pendingTabId = error.tabId; el('showPage').hidden = false; }
   if (/服务|模型|连接|本地处理/.test(message)) { el('serviceHelp').hidden = false; el('serviceHelp').open = true; }
 }
 function busy(value) {
   running = value;
-  for (const id of ['start', 'transcribe', 'current', 'refresh', 'resume', 'retry']) el(id).disabled = value;
+  for (const id of ['start', 'transcribe', 'current', 'refresh', 'resume', 'retry', 'loginDouyin']) el(id).disabled = value;
 }
 async function refreshTabs() {
   const previous = el('tabs').value;
@@ -40,13 +40,14 @@ async function refreshTabs() {
   if ([...el('tabs').options].some(o => o.value === previous)) el('tabs').value = previous;
   if (previous && previous !== el('tabs').value) resetTerms();
 }
-async function readPage(tabId, expectedId) {
-  pendingTabId = tabId; el('showPage').hidden = false;
-  status('正在读取抖音作品，请保留此工具页。');
-  return readNormalPage(tabId, expectedId, {
-    getTab: id => chrome.tabs.get(id), navigate: (id, url) => chrome.tabs.update(id, {url}), pause,
-    capture: async id => (await chrome.scripting.executeScript({target: {tabId: id}, func: capturePage}))[0]?.result
-  });
+async function parserRequest(action, payload = {}) {
+  const result = await chrome.runtime.sendMessage({action, ...payload});
+  if (!result?.ok) {
+    const error = new Error(result?.error || '扩展页面未响应，请重新加载扩展并重新打开工具页。');
+    error.code = result?.code; error.tabId = result?.tabId;
+    throw error;
+  }
+  return result;
 }
 async function checkDownload(id) {
   const job = downloads.get(id); if (!job) return;
@@ -165,16 +166,14 @@ async function start(mode, existing = false, operation = null) {
   lastOperation = op;
   retryAction = () => start(op.mode,op.existing,op);
   busy(true); el('retry').hidden = true; el('copyState').textContent = '';
+  pendingTabId = null; el('showPage').hidden = true;
   // Existing valid output remains available until a new completed result replaces it.
   try {
     const url = op.existing ? null : shareURL(op.link);
     if (op.mode === 'transcribe') { status('正在连接本地文案服务…'); checkService(await localRequest('/health'),true); el('serviceHelp').hidden = true; }
-    let tab;
-    if (op.existing) {
-      if (!op.tabId) throw new Error('请先打开并选择目标抖音作品。');
-      tab = await chrome.tabs.get(op.tabId);
-    } else tab = await chrome.tabs.create({url,active:false});
-    const work = await readPage(tab.id,workIdFromURL(op.existing ? tab.url : url));
+    if (op.existing && !op.tabId) throw new Error('请先打开并选择目标抖音作品。');
+    status('正在后台读取抖音作品，请保留此工具页。');
+    const {work} = await parserRequest('resolve-douyin', {url, existingTabId: op.existing ? op.tabId : null, retry: Boolean(operation)});
     if (op.mode === 'transcribe' && work.durationMs > 3600000) throw new Error('本地文案原型支持一小时以内的视频。');
     if (op.mode === 'download') {
       await saveVideo(work,op.quality);
@@ -214,7 +213,20 @@ el('start').addEventListener('click', () => start('download'));
 el('transcribe').addEventListener('click', () => start('transcribe'));
 el('current').addEventListener('click', () => start(el('existingAction').value, true));
 el('refresh').addEventListener('click', () => refreshTabs().catch(() => status('无法读取抖音页面列表。')));
-el('showPage').addEventListener('click', () => { if (pendingTabId !== null) chrome.tabs.update(pendingTabId, {active: true}); });
+el('showPage').addEventListener('click', async () => {
+  if (pendingTabId === null) return;
+  try { const tab = await chrome.tabs.update(pendingTabId, {active: true}); await chrome.windows.update(tab.windowId, {focused: true}); }
+  catch { pendingTabId = null; el('showPage').hidden = true; status('待处理页面已关闭，请点击“重试本次操作”重新打开。','error'); }
+});
+el('loginTip').hidden = readSaved('loginTipSeen-v1') === true;
+el('dismissLoginTip').addEventListener('click', () => { if (persist('loginTipSeen-v1',true)) el('loginTip').hidden = true; });
+el('loginDouyin').addEventListener('click', async () => {
+  if (running) return;
+  busy(true);
+  try { await parserRequest('login-douyin'); el('loginTipState').textContent = '请在抖音页面自行登录，完成后回到这里粘贴链接。'; }
+  catch (error) { el('loginTipState').textContent = error.message; }
+  finally { busy(false); }
+});
 el('exportTxt').addEventListener('click', () => exportTranscript('txt'));
 el('exportSrt').addEventListener('click', () => exportTranscript('srt'));
 el('copy').addEventListener('click', async () => {
