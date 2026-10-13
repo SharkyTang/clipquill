@@ -1,0 +1,33 @@
+work/
+__pycache__/
+.DS_Store
+
+# Local environments and credentials
+.venv/
+venv/
+node_modules/
+.env
+.env.*
+!.env.example
+*.py[cod]
+*.pem
+*.key
+
+# Keep source, documentation and the current extension package.
+# Captures, transcripts, audio, screenshots and rollback copies stay local.
+outputs/*
+!outputs/douyin-independent-extension/
+!outputs/douyin-independent-extension-v0.1.2.zip
+!outputs/启动本地文案服务.command
+!outputs/asr-model-provenance.json
+!outputs/*.md
+
+outputs/douyin-independent-extension/*.log
+outputs/douyin-independent-extension/*.zip
+
+!outputs/phase-01/
+outputs/phase-01/*
+!outputs/phase-01/*.md
+!outputs/phase-01/round2/
+outputs/phase-01/round2/*
+!outputs/phase-01/round2/*.md

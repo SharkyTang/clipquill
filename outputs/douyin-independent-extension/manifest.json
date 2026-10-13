@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "抖音视频与文案 · 本地简化版",
+  "version": "0.1.2",
+  "description": "在正常抖音页面中识别作品，保存页面提供的 MP4 播放文件。所有解析在本机进行。",
+  "permissions": [
+    "scripting",
+    "downloads"
+  ],
+  "host_permissions": [
+    "https://www.douyin.com/*",
+    "https://v.douyin.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "打开独立视频导出"
+  }
+}

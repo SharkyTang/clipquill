@@ -1,0 +1,20 @@
+[
+  {
+    "modelDirectory": "work/independent-asr/qwen3-asr-1.7b-8bit",
+    "sha256": "bf304b009cc7eca79283056f787b44c952d24ac22cec787b39732bba3c23c13c",
+    "bytes": 2463307541,
+    "downloadMetadata": [
+      "a8379a2e2f9e313c9292cdf1af4055ab56d50d55",
+      "bf304b009cc7eca79283056f787b44c952d24ac22cec787b39732bba3c23c13c"
+    ]
+  },
+  {
+    "modelDirectory": "work/independent-asr/qwen3-aligner-0.6b-8bit",
+    "sha256": "be19ef8ac4326d032e7673342930b14c2df30bd68c1632493b0f563e30829f91",
+    "bytes": 1271924386,
+    "downloadMetadata": [
+      "0e1a68e91d815300c7c9754b2a7639378b23db15",
+      "be19ef8ac4326d032e7673342930b14c2df30bd68c1632493b0f563e30829f91"
+    ]
+  }
+]

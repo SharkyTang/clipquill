@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>抖音视频与文案 · 本地工具</title><link rel="stylesheet" href="tool.css"></head>
+<body><main>
+  <p class="eyebrow">本地工具</p>
+  <h1>保存视频，提取文案</h1>
+  <p class="intro">粘贴抖音分享链接，或选择已打开的作品。视频和文案保存在这台电脑。</p>
+  <label for="link">视频分享链接</label>
+  <textarea id="link" rows="2" placeholder="粘贴抖音链接或完整分享文字"></textarea>
+  <div class="actions"><button id="start">下载视频</button><button id="transcribe" class="primary">提取文案</button></div>
+  <details id="options"><summary>辅助选项</summary>
+    <div class="row"><label for="quality">优先清晰度</label><select id="quality"><option value="720">720p · 兼容优先</option><option value="1080">1080p</option></select></div>
+    <label class="confirm"><input id="enableTerms" type="checkbox">本次提取使用术语提示</label>
+    <label for="terms">专有名词（可选）</label><input id="terms" type="text" maxlength="400" placeholder="只填写本条视频可能出现的词" disabled>
+    <p id="termsState" class="hint">默认不使用术语。换链接后自动停用，下一条需要重新启用。</p>
+    <button id="importTerms" hidden>查看并填入旧术语</button>
+  </details>
+  <details id="existingPages"><summary>选择已打开的作品</summary><p>链接需要登录或未加载成功时，先正常打开作品，再从这里选择。</p><div class="row"><select id="tabs" aria-label="抖音作品页面"></select><button id="refresh">刷新列表</button></div><div class="row"><select id="existingAction" aria-label="处理方式"><option value="transcribe">提取文案</option><option value="download">下载视频</option></select><button id="current">处理所选作品</button></div></details>
+  <p id="status" role="status" aria-live="polite">等待视频链接。</p>
+  <div class="row"><button id="retry" hidden>重试本次操作</button><button id="showPage" hidden>打开待处理的抖音页面</button><button id="resume" hidden>恢复上次文案</button></div>
+  <details id="serviceHelp" hidden><summary>启动或检查本地文案服务</summary><p>在项目 outputs 文件夹中双击“启动本地文案服务.command”。保持服务窗口运行，回到这里检查连接，再重试提取。关闭服务、休眠或关机会中断处理。</p><p>配套和模型尚未准备时，请按插件使用说明准备。本次交付仅适用于现有本机环境。</p><button id="checkConnection">检查连接</button><p id="connectionState" role="status"></p></details>
+  <section id="transcriptSection" hidden><h2>视频文案</h2><p id="transcriptFacts"></p>
+    <label for="transcriptText">当前文案 · 可直接编辑</label><textarea id="transcriptText" rows="10" aria-label="当前完整文案" aria-describedby="mappingHint"></textarea>
+    <div class="row"><button id="copy" class="primary">复制全文</button><button id="exportTxt">导出 TXT</button><button id="exportSrt">导出 SRT</button></div><p id="copyState" role="status" aria-live="polite"></p>
+    <p class="hint">自动识别可能有误，可以直接改字、复制或导出，无需逐句确认。</p>
+    <p id="mappingHint" class="hint">SRT 沿用原字幕时间；跨段修改会合并原时间区间，新增文字归入所在区间，不重新估算时间。</p>
+    <details id="reviewDetails"><summary>回听与细致校对（可选）</summary><p id="technicalFacts" class="hint"></p><p id="reviewProgress" role="status"></p>
+      <div id="reviewPanel" hidden><p class="hint">逐段回听当前稿。全文合并后，这里也按合并后的时间区间展示；勾选确认仅作自己的记录。</p>
+        <audio id="reviewAudio" controls preload="metadata" aria-label="原音回听"></audio><p id="audioState" class="hint"></p>
+        <select id="segmentSelect" aria-label="选择校对片段"></select>
+        <div class="row"><button id="previousSegment">上一段</button><span id="segmentPosition"></span><button id="nextSegment">下一段</button><button id="playSegment">回听这一段</button><button id="nextAttention">下一个重点</button></div>
+        <label for="segmentText">这一段的文案</label><textarea id="segmentText" rows="3"></textarea>
+        <p id="segmentOriginal" class="hint"></p><p id="segmentAttention" class="hint"></p>
+        <label class="confirm"><input id="confirmSegment" type="checkbox">我已核对这一段</label>
+      </div><p id="transcriptWarnings" class="hint"></p>
+    </details>
+  </section>
+  <section id="result" hidden><h2>已识别作品</h2><p id="title"></p><p id="facts"></p><p id="downloadState"></p></section>
+  <footer>视频保存到“下载 / 抖音独立导出”。原始文案保留在本地服务，当前稿自动保存在本机扩展中；卸载或清理扩展前请导出。下载期间请保持工具页打开。仅处理你有权保存、使用的内容。</footer>
+</main><script type="module" src="tool.js"></script></body></html>
