@@ -1,8 +1,15 @@
 {
   "manifest_version": 3,
-  "name": "抖音视频与文案 · 本地简化版",
+  "name": "ClipQuill",
+  "short_name": "ClipQuill",
   "version": "0.1.5",
-  "description": "在正常抖音页面中识别作品，保存页面提供的 MP4 播放文件。所有解析在本机进行。",
+  "description": "保存抖音视频，提取、编辑与导出文案。语音识别使用配套本地服务。",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "permissions": [
     "scripting",
     "downloads",
@@ -18,6 +25,10 @@
     "type": "module"
   },
   "action": {
-    "default_title": "打开独立视频导出"
+    "default_title": "ClipQuill",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png"
+    }
   }
 }

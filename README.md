@@ -1,4 +1,8 @@
-# 抖音独立工具验证
+# ClipQuill
+
+## UI 重构：S3 视觉检查点（2026-10-14）
+
+当前扩展源码已接入蓝紫羽毛笔品牌、浅色/深色/跟随系统主题，以及宽屏工作区和窄屏单栏布局。唯一入口仍为浏览器扩展标签页，下载、提取、编辑、恢复与 TXT/SRT 沿用原实现。详见 [S0–S3 交接](docs/ui-redesign/handoff.md) 和 [验证报告与实现截图](docs/ui-redesign/qa-report.md)。目前 94 项 JavaScript、53 项 Python 检查通过；截图来自明确隔离的 HTTP fixture，真实 Chrome 新界面端到端仍待验收。S4–S6 未开始，现有 ZIP 和安装目录未更新。
 
 ## 当前仓库版本：v0.1.5（2026-10-14）
 

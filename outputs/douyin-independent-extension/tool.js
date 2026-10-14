@@ -18,6 +18,20 @@ function persist(key,value) {
   catch { el("copyState").textContent = "当前稿自动保存失败，请先复制或导出，避免刷新丢失。"; return false; }
 }
 function status(text, state = 'waiting') { el('status').textContent = text; el('status').dataset.state = state; }
+async function connectLocalService(options) {
+  el('serviceStatus').textContent = '本地服务 · 正在连接';
+  el('serviceStatus').dataset.state = 'waiting';
+  try {
+    const service = await ensureLocalService(options);
+    el('serviceStatus').textContent = '本地服务 · 已连接';
+    el('serviceStatus').dataset.state = 'complete';
+    return service;
+  } catch (error) {
+    el('serviceStatus').textContent = '本地服务 · 连接未确认';
+    el('serviceStatus').dataset.state = 'error';
+    throw error;
+  }
+}
 function fail(error) {
   const message = error.message || '处理失败，请重试。';
   status('未完成：' + message, 'error');
@@ -38,6 +52,10 @@ async function refreshTabs() {
     const option = document.createElement('option'); option.value = String(tab.id);
     option.textContent = (tab.title || '抖音作品') + ' · ' + workIdFromURL(tab.url);
     el('tabs').append(option);
+  }
+  if (!el('tabs').options.length) {
+    const option = document.createElement('option'); option.value = '';
+    option.textContent = '请先打开抖音作品，或粘贴分享链接'; el('tabs').append(option);
   }
   if ([...el('tabs').options].some(o => o.value === previous)) el('tabs').value = previous;
   if (previous && previous !== el('tabs').value) resetTerms();
@@ -61,6 +79,7 @@ async function checkDownload(id) {
 }
 chrome.downloads.onChanged.addListener(delta => { if (downloads.has(delta.id)) checkDownload(delta.id); });
 function showVideo(work, candidate) {
+  el('videoEmpty').hidden = true;
   el('result').hidden = false; el('title').textContent = work.title;
   el('facts').textContent = `${work.id} · ${(work.durationMs / 1000).toFixed(1)} 秒 · ${candidate.width} × ${candidate.height} · ${(candidate.size / 1024 ** 2).toFixed(1)} MiB`;
 }
@@ -87,14 +106,17 @@ function showTranscript(job, offline = false) {
   }
   review = draft.sources.length ? draftSegments(draft) : null; segmentIndex = 0;
   el('transcriptSection').hidden = false;
+  el('emptyTranscript').hidden = true;
+  el('recentState').textContent = '最近文案：' + (job.title || '上次提取的作品');
   el('reviewDetails').open = false;
   el('reviewPanel').hidden = !review;
   el('transcriptFacts').textContent = '当前稿：' + (job.title || '上次提取的作品');
   el('technicalFacts').textContent = `${job.workId} · ${job.characters} 字 · ${job.segments} 个语音片段 · 本地转写用时 ${job.elapsedSeconds.toFixed(1)} 秒 · ${job.model || '旧版模型'}`;
   el('transcriptWarnings').textContent = ['原始识别文件和旧校对草稿保留；当前稿仅保存在这台电脑的扩展中。人工确认不代表准确率。', ...(job.warnings || [])].join(' ');
   // Cache only the completed result needed by this page. No cookies or page captures.
-  persist('result-v1-' + job.id,job);
-  persist('lastCompleted-v1',{id:job.id,workId:job.workId});
+  const resultSaved = persist('result-v1-' + job.id,job);
+  const refSaved = persist('lastCompleted-v1',{id:job.id,workId:job.workId});
+  el('saveState').textContent = resultSaved && refSaved ? '已保存在本机' : '保存失败 · 请导出';
   updatePreview();
   status(offline ? '已恢复本机当前稿，可编辑、复制和导出。回听时会自动连接本地助手。' : '文案已完成，可直接编辑、复制或导出。','complete');
   if (audioURL) URL.revokeObjectURL(audioURL);
@@ -107,6 +129,7 @@ function updatePreview() {
   if (!draft) return;
   const current = exportDraft(draft);
   if (el('transcriptText').value !== current.text) el('transcriptText').value = current.text;
+  el('characterCount').textContent = `${Array.from(current.text).length.toLocaleString()} 字符`;
   review = draft.sources.length ? draftSegments(draft) : null;
   el('reviewProgress').textContent = review ? `人工核对 ${current.confirmed} / ${current.total} 段` : '旧任务没有可用的逐段时间，可继续编辑、复制或导出 TXT。';
   el('mappingHint').textContent = current.srtError || 'SRT 沿用原字幕时间；跨段修改会合并原时间区间，新增文字归入所在区间，不重新估算时间。';
@@ -120,7 +143,9 @@ function updatePreview() {
   }
 }
 function saveDraft() {
-  persist('draft-v1-' + transcript.id,saveableDraft(draft));
+  el('saveState').textContent = '保存中…';
+  const saved = persist('draft-v1-' + transcript.id,saveableDraft(draft));
+  el('saveState').textContent = saved ? '已保存在本机' : '保存失败 · 请导出';
   updatePreview();
 }
 function renderSegment() {
@@ -143,7 +168,7 @@ async function loadAudio(job) {
   if (!review || !job.hasAudio) return;
   el('audioState').textContent = '正在加载本地回听音频…';
   try {
-    await ensureLocalService({onState: text => { el('audioState').textContent = text; }});
+    await connectLocalService({onState: text => { el('audioState').textContent = text; }});
     const blob = await localAudio(job.id);
     if (transcript?.id !== job.id) return;
     audioURL = URL.createObjectURL(blob); cachedAudioJob = job.id; el('reviewAudio').src = audioURL;
@@ -175,7 +200,7 @@ async function start(mode, existing = false, operation = null) {
     const url = op.existing ? null : shareURL(op.link);
     if (op.existing && !op.tabId) throw new Error('请先打开并选择目标抖音作品。');
     if (op.mode === 'transcribe') {
-      await ensureLocalService({onState: text => status(text)});
+      await connectLocalService({onState: text => status(text)});
       el('serviceHelp').hidden = true;
     }
     status('正在后台读取抖音作品，请保留此工具页。');
@@ -247,7 +272,7 @@ async function restoreLast() {
   try {
     const ref = JSON.parse(localStorage.getItem('lastTranscription'));
     if (!/^[a-f0-9]{32}$/.test(ref?.id || '') || !/^\d{10,30}$/.test(ref?.workId || '')) throw new Error('没有可恢复的识别任务。');
-    await ensureLocalService({onState: text => status(text)});
+    await connectLocalService({onState: text => status(text)});
     await followJob(ref);
   } catch (error) { fail(error); }
   finally { busy(false); }
@@ -272,10 +297,12 @@ el('tabs').addEventListener('change',resetTerms);
 el('checkConnection').addEventListener('click',async() => {
   el('checkConnection').disabled = true; el('connectionState').textContent = '正在检查…';
   try {
-    await ensureLocalService({onState: text => { el('connectionState').textContent = text; }});
+    await connectLocalService({onState: text => { el('connectionState').textContent = text; }});
     el('connectionState').textContent = '文案服务已就绪，可以重试提取。';
+    el('serviceStatus').textContent = '本地服务 · 已连接';
+    el('serviceStatus').dataset.state = 'complete';
   }
-  catch(error) { el('connectionState').textContent = error.message; }
+  catch(error) { el('connectionState').textContent = error.message; el('serviceStatus').textContent = '本地服务 · 连接未确认'; el('serviceStatus').dataset.state = 'error'; }
   finally { el('checkConnection').disabled = false; }
 });
 el('transcriptText').addEventListener('beforeinput',event => {
@@ -326,3 +353,13 @@ el('nextAttention').addEventListener('click', () => {
   }
 });
 refreshTabs().catch(() => status('无法读取抖音页面列表。'));
+
+// Navigation opens existing UI; it never creates a new processing task.
+el('appVersion').textContent = 'v' + chrome.runtime.getManifest().version;
+function openSettings() { el('settingsPanel').open = true; el('settingsPanel').scrollIntoView({block:'nearest'}); }
+el('openSettings').addEventListener('click',openSettings);
+el('openServiceHelp').addEventListener('click',() => { el('serviceHelp').hidden = false; el('serviceHelp').open = true; el('serviceHelp').scrollIntoView({block:'nearest'}); });
+el('recentDraft').addEventListener('click',() => {
+  if (draft) { el('transcriptText').focus(); return; }
+  openSettings(); el('recentState').textContent = readSaved('lastTranscription') ? '有上次识别任务，可尝试恢复。' : '还没有可恢复的最近文案。';
+});

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none" role="img" aria-labelledby="title">
+  <title id="title">ClipQuill</title>
+  <defs>
+    <linearGradient id="brand" x1="23" y1="34" x2="102" y2="93" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4F8CFF"/>
+      <stop offset="1" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <linearGradient id="feather" x1="52" y1="49" x2="99" y2="72" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4F8CFF"/>
+      <stop offset="1" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <mask id="quill-cut">
+      <path fill="#fff" d="M111 12c2 19-5 34-22 43l12-3c-5 12-13 20-29 27l12-1c-9 9-20 15-30 18-4 1-8 4-11 8l-9 12 5-17 8-20 7-13-8 7c4-18 15-33 30-43 13-9 24-14 35-18Z"/>
+      <path d="M36 115C46 94 59 77 78 56" stroke="#000" stroke-width="3.5" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <path d="m49 35-10-5C27 24 18 33 18 45v46c0 12 7 20 18 20l5-9c-9 1-14-3-14-12V45c0-6 5-9 10-7l7 4 5-7Z" fill="url(#brand)"/>
+  <path d="M36 55v23l14-12-14-11Z" fill="url(#brand)"/>
+  <path d="M111 12c2 19-5 34-22 43l12-3c-5 12-13 20-29 27l12-1c-9 9-20 15-30 18-4 1-8 4-11 8l-9 12 5-17 8-20 7-13-8 7c4-18 15-33 30-43 13-9 24-14 35-18Z" fill="url(#feather)" mask="url(#quill-cut)"/>
+</svg>

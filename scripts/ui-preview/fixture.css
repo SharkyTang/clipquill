@@ -1,0 +1,3 @@
+.fixture-banner{background:var(--cq-warning-surface);color:var(--cq-warning);font:11px/26px system-ui,sans-serif;text-align:center;border-bottom:1px solid var(--cq-border-subtle);height:27px}
+.app-shell{height:calc(100dvh - 27px)}
+@media(max-width:1023px),(max-height:700px){.app-shell{height:auto;min-height:calc(100dvh - 27px)}}

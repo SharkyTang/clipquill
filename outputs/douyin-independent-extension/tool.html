@@ -1,46 +1,88 @@
 <!doctype html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>抖音视频与文案 · 本地工具</title><link rel="stylesheet" href="tool.css"></head>
-<body><main>
-  <p class="eyebrow">本地工具</p>
-  <h1>保存视频，提取文案</h1>
-  <p class="intro">粘贴抖音分享链接，或选择已打开的作品。视频和文案保存在这台电脑。</p>
-  <aside id="loginTip" aria-labelledby="loginTipTitle" hidden>
-    <p id="loginTipTitle"><strong>首次使用，建议先登录网页版抖音</strong></p>
-    <p class="hint">请在安装此扩展的同一个 Chrome 用户配置中登录。登录状态有效时无需重复登录；遇到登录或安全验证，工具会打开对应页面，请自行完成后返回重试。</p>
-    <div class="row"><button id="loginDouyin">打开抖音登录</button><button id="dismissLoginTip">知道了</button></div>
-    <p id="loginTipState" class="hint" role="status"></p>
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>ClipQuill</title>
+  <script src="theme-init.js"></script>
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon16.png">
+  <link rel="stylesheet" href="tool.css">
+</head>
+<body>
+<a class="skip-link" href="#link">跳到视频来源</a>
+<div class="app-shell">
+  <aside class="sidebar" aria-label="ClipQuill 导航">
+    <a class="brand" href="#workspace" aria-label="ClipQuill 视频处理"><img src="assets/brand/clipquill-logo.svg" width="38" height="38" alt=""><span>ClipQuill</span></a>
+    <p class="brand-caption">Capture. Learn. Create.</p>
+    <nav>
+      <a class="nav-item active" href="#workspace" aria-current="page" title="视频处理"><span class="icon i-home" aria-hidden="true"></span><span class="nav-label">视频处理</span></a>
+      <button class="nav-item" id="recentDraft" title="最近文案"><span class="icon i-clock" aria-hidden="true"></span><span class="nav-label">最近文案</span></button>
+      <button class="nav-item" id="openSettings" title="设置与帮助"><span class="icon i-settings" aria-hidden="true"></span><span class="nav-label">设置与帮助</span></button>
+    </nav>
+    <div class="sidebar-foot"><p>从好视频，<br>留下好想法。</p><span id="appVersion">ClipQuill</span></div>
   </aside>
-  <label for="link">视频分享链接</label>
-  <textarea id="link" rows="2" placeholder="粘贴抖音链接或完整分享文字"></textarea>
-  <div class="actions"><button id="start">下载视频</button><button id="transcribe" class="primary">提取文案</button></div>
-  <details id="options"><summary>辅助选项</summary>
-    <div class="row"><label for="quality">优先清晰度</label><select id="quality"><option value="720">720p · 兼容优先</option><option value="1080">1080p</option></select></div>
-    <label class="confirm"><input id="enableTerms" type="checkbox">本次提取使用术语提示</label>
-    <label for="terms">专有名词（可选）</label><input id="terms" type="text" maxlength="400" placeholder="只填写本条视频可能出现的词" disabled>
-    <p id="termsState" class="hint">默认不使用术语。换链接后自动停用，下一条需要重新启用。</p>
-    <button id="importTerms" hidden>查看并填入旧术语</button>
-  </details>
-  <details id="existingPages"><summary>选择已打开的作品</summary><p>链接需要登录或未加载成功时，先正常打开作品，再从这里选择。</p><div class="row"><select id="tabs" aria-label="抖音作品页面"></select><button id="refresh">刷新列表</button></div><div class="row"><select id="existingAction" aria-label="处理方式"><option value="transcribe">提取文案</option><option value="download">下载视频</option></select><button id="current">处理所选作品</button></div></details>
-  <p id="status" role="status" aria-live="polite">等待视频链接。</p>
-  <div class="row"><button id="retry" hidden>重试本次操作</button><button id="showPage" hidden>打开待处理的抖音页面</button><button id="resume" hidden>恢复上次文案</button></div>
-  <details id="serviceHelp" hidden><summary>本地助手连接与首次安装</summary><p>安装一次本地助手后，点击“提取文案”会自动启动服务并继续处理，无需保留终端窗口。</p><p>首次使用或安装未完成时，请双击安装包中的“首次安装.command”。它会准备模型和连接配置，完成后回到这里重试。安装过程需要联网下载模型。</p><button id="checkConnection">重试连接</button><p id="connectionState" role="status"></p></details>
-  <section id="transcriptSection" hidden><h2>视频文案</h2><p id="transcriptFacts"></p>
-    <label for="transcriptText">当前文案 · 可直接编辑</label><textarea id="transcriptText" rows="10" aria-label="当前完整文案" aria-describedby="mappingHint"></textarea>
-    <div class="row"><button id="copy" class="primary">复制全文</button><button id="exportTxt">导出 TXT</button><button id="exportSrt">导出 SRT</button></div><p id="copyState" role="status" aria-live="polite"></p>
-    <p class="hint">自动识别可能有误，可以直接改字、复制或导出，无需逐句确认。</p>
-    <p id="mappingHint" class="hint">SRT 沿用原字幕时间；跨段修改会合并原时间区间，新增文字归入所在区间，不重新估算时间。</p>
-    <details id="reviewDetails"><summary>回听与细致校对（可选）</summary><p id="technicalFacts" class="hint"></p><p id="reviewProgress" role="status"></p>
-      <div id="reviewPanel" hidden><p class="hint">逐段回听当前稿。全文合并后，这里也按合并后的时间区间展示；勾选确认仅作自己的记录。</p>
-        <audio id="reviewAudio" controls preload="metadata" aria-label="原音回听"></audio><p id="audioState" class="hint"></p>
-        <select id="segmentSelect" aria-label="选择校对片段"></select>
-        <div class="row"><button id="previousSegment">上一段</button><span id="segmentPosition"></span><button id="nextSegment">下一段</button><button id="playSegment">回听这一段</button><button id="nextAttention">下一个重点</button></div>
-        <label for="segmentText">这一段的文案</label><textarea id="segmentText" rows="3"></textarea>
-        <p id="segmentOriginal" class="hint"></p><p id="segmentAttention" class="hint"></p>
-        <label class="confirm"><input id="confirmSegment" type="checkbox">我已核对这一段</label>
-      </div><p id="transcriptWarnings" class="hint"></p>
-    </details>
-  </section>
-  <section id="result" hidden><h2>已识别作品</h2><p id="title"></p><p id="facts"></p><p id="downloadState"></p></section>
-  <footer>视频保存到“下载 / 抖音独立导出”。原始文案保留在本地服务，当前稿自动保存在本机扩展中；卸载或清理扩展前请导出。下载期间请保持工具页打开。仅处理你有权保存、使用的内容。</footer>
-</main><script type="module" src="tool.js"></script></body></html>
+  <main id="workspace">
+    <header class="topbar">
+      <div><span class="topbar-brand">ClipQuill <span class="divider">/</span></span><h1>视频处理</h1></div>
+      <div class="topbar-controls">
+        <span id="serviceStatus" class="service-status" title="点击提取文案时会自动连接本地助手">本地服务 · 待连接</span>
+        <label class="theme-label" for="themePreference">主题</label>
+        <select id="themePreference" aria-describedby="themeState"><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select>
+      </div>
+    </header>
+    <p id="themeState" class="theme-state" role="status" aria-live="polite"></p>
+    <div class="page-content">
+      <section class="source-card" aria-label="视频来源">
+        <div class="source-input"><span class="icon i-link" aria-hidden="true"></span><div><label for="link">视频来源 <span class="platform-label">抖音</span></label><textarea id="link" rows="1" placeholder="粘贴抖音分享内容或视频链接"></textarea></div></div>
+        <details id="existingPages"><summary><span class="icon i-desktop" aria-hidden="true"></span>已打开作品</summary><div class="source-popover"><p class="hint">选择目标抖音作品；不会把 ClipQuill 页面作为来源。</p><div class="row"><select id="tabs" aria-label="抖音作品页面"></select><button id="refresh">刷新列表</button></div><div class="row"><select id="existingAction" aria-label="处理方式"><option value="transcribe">提取文案</option><option value="download">下载视频</option></select><button id="current" class="primary">处理所选作品</button></div></div></details>
+      </section>
+      <div class="workspace-grid">
+        <aside class="video-column">
+          <section class="card video-card" aria-labelledby="videoHeading">
+            <div class="card-heading"><h2 id="videoHeading">视频信息</h2><span class="badge">抖音</span></div>
+            <div id="videoEmpty" class="video-empty"><span class="icon i-link" aria-hidden="true"></span><strong>从一条视频开始</strong><p>粘贴分享内容，或选择已打开的作品。</p></div>
+            <section id="result" hidden><h3 id="title"></h3><p class="hint">已读取作品信息</p><details class="metadata-details"><summary>作品详细信息</summary><p id="facts"></p></details><p id="downloadState"></p></section>
+            <div class="task-actions"><button id="transcribe" class="primary"><span class="icon i-document" aria-hidden="true"></span><span>提取文案<small>本地识别 · 自动复用已有视频</small></span></button><button id="start"><span class="icon i-download" aria-hidden="true"></span><span>下载视频<small>保存到本机下载文件夹</small></span></button></div>
+            <div class="task-status"><h3>处理状态</h3><p id="status" role="status" aria-live="polite" data-state="waiting">等待视频链接。</p><div class="row"><button id="retry" hidden>重试本次操作</button><button id="showPage" hidden>打开待处理的抖音页面</button></div></div>
+            <p class="hint keep-open">下载和提取时，请保持此工具页打开。</p>
+          </section>
+          <details id="options" class="card"><summary>辅助选项</summary><div class="details-content">
+            <label for="quality">优先清晰度</label><select id="quality"><option value="720">720p · 兼容优先</option><option value="1080">1080p</option></select>
+            <label class="confirm"><input id="enableTerms" type="checkbox">本次提取使用术语提示</label>
+            <label for="terms">专有名词（可选）</label><input id="terms" type="text" maxlength="400" placeholder="只填写本条视频可能出现的词" disabled>
+            <p id="termsState" class="hint">默认不使用术语。换链接后自动停用，下一条需要重新启用。</p><button id="importTerms" hidden>查看并填入旧术语</button>
+          </div></details>
+          <details id="settingsPanel" class="card"><summary>设置与帮助</summary><div class="details-content">
+            <h3>本地助手</h3><p class="hint">安装一次后，提取文案会自动连接或启动服务。视频下载独立可用。</p>
+            <button id="openServiceHelp">连接与首次安装说明</button>
+            <h3>最近文案</h3><p id="recentState" class="hint">只保留最近一份可恢复文案。</p><button id="resume" hidden>恢复上次文案</button>
+            <p class="hint">视频保存到“下载 / 抖音独立导出”。原始文案保留在本地服务，当前稿保存在本机扩展中；卸载或清理扩展前请导出。</p>
+          </div></details>
+          <details id="serviceHelp" class="card notice warning" hidden><summary>本地助手连接与首次安装</summary><div class="details-content"><p>安装一次本地助手后，点击“提取文案”会自动启动服务并继续处理，无需保留终端窗口。</p><p>首次使用或安装未完成时，请双击安装包中的“首次安装.command”。它会准备模型和连接配置，完成后回到这里重试。安装过程需要联网下载模型。</p><button id="checkConnection">重试连接</button><p id="connectionState" role="status"></p></div></details>
+          <aside id="loginTip" class="card notice" aria-labelledby="loginTipTitle" hidden><strong id="loginTipTitle">建议先登录网页版抖音</strong><p class="hint">在同一个 Chrome 用户配置中登录；若遇到登录或安全验证，请自行完成后返回重试。</p><div class="row"><button id="loginDouyin">打开抖音登录</button><button id="dismissLoginTip">知道了</button></div><p id="loginTipState" class="hint" role="status"></p></aside>
+        </aside>
+        <section class="card editor-card" aria-labelledby="editorHeading">
+          <div class="editor-heading"><div class="editor-tab"><span class="icon i-document" aria-hidden="true"></span><h2 id="editorHeading">视频文案</h2></div><span class="editor-local">本机工作区</span></div>
+          <div id="emptyTranscript" class="empty-transcript"><img src="assets/brand/clipquill-logo.svg" alt="" width="64" height="64"><h2>让视频里的想法，成为文字</h2><p>选择视频后点击「提取文案」。<br>完成后可在这里编辑、回听、复制和导出。</p><span>语音识别由配套本地服务完成</span></div>
+          <section id="transcriptSection" hidden>
+            <div class="draft-heading"><div><label for="transcriptText">当前文案 <span>可直接编辑</span></label><p id="transcriptFacts"></p></div><span id="saveState" role="status">当前稿</span></div>
+            <textarea id="transcriptText" rows="10" aria-label="当前完整文案" aria-describedby="mappingHint" spellcheck="false"></textarea>
+            <div class="editor-toolbar"><div class="export-actions"><button id="copy" class="primary"><span class="icon i-copy" aria-hidden="true"></span>复制全文</button><button id="exportTxt">导出 TXT</button><button id="exportSrt">导出 SRT</button></div><span id="characterCount" class="hint"></span></div>
+            <p id="copyState" role="status" aria-live="polite"></p>
+            <p id="mappingHint" class="hint">SRT 沿用原字幕时间；跨段修改会合并原时间区间，新增文字归入所在区间，不重新估算时间。</p>
+            <details id="reviewDetails"><summary>回听与细致校对 <span class="hint">可选</span></summary><p id="technicalFacts" class="hint"></p><p id="reviewProgress" role="status"></p>
+              <div id="reviewPanel" hidden><p class="hint">逐段回听当前稿。全文合并后，这里也按合并后的时间区间展示；勾选确认仅作自己的记录。</p>
+                <audio id="reviewAudio" controls preload="metadata" aria-label="原音回听"></audio><p id="audioState" class="hint"></p><select id="segmentSelect" aria-label="选择校对片段"></select>
+                <div class="row"><button id="previousSegment">上一段</button><span id="segmentPosition"></span><button id="nextSegment">下一段</button><button id="playSegment">回听这一段</button><button id="nextAttention">下一个重点</button></div>
+                <label for="segmentText">这一段的文案</label><textarea id="segmentText" rows="3"></textarea><p id="segmentOriginal" class="hint"></p><p id="segmentAttention" class="hint"></p><label class="confirm"><input id="confirmSegment" type="checkbox">我已核对这一段</label>
+              </div><p id="transcriptWarnings" class="hint"></p>
+            </details>
+          </section>
+          <div class="editor-footnote">自动识别可能有误，请结合原音核对。仅处理你有权保存、使用的内容。</div>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+<script type="module" src="tool.js"></script>
+</body></html>

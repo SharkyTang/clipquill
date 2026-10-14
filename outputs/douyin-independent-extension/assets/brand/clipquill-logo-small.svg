@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none" role="img" aria-labelledby="title">
+  <title id="title">ClipQuill small-size symbol</title>
+  <defs>
+    <linearGradient id="brand" x1="22" y1="28" x2="105" y2="95" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#4F8CFF"/>
+      <stop offset="1" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <mask id="quill-cut">
+      <path fill="#fff" d="M111 13c2 20-5 34-23 45l12-3c-6 14-20 25-38 32l11-1c-11 9-23 14-31 24l-8 7 6-20 10-22-5 3c4-21 17-36 33-47 12-8 23-14 33-18Z"/>
+      <path d="M36 115C47 94 61 76 78 58" stroke="#000" stroke-width="5" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <path d="m50 34-12-6C25 22 16 32 16 45v47c0 13 7 20 19 20l6-11c-10 1-14-3-14-11V45c0-6 4-8 9-6l8 4 6-9Z" fill="url(#brand)"/>
+  <path d="M35 53v26l16-14-16-12Z" fill="url(#brand)"/>
+  <path d="M111 13c2 20-5 34-23 45l12-3c-6 14-20 25-38 32l11-1c-11 9-23 14-31 24l-8 7 6-20 10-22-5 3c4-21 17-36 33-47 12-8 23-14 33-18Z" fill="url(#brand)" mask="url(#quill-cut)"/>
+</svg>
