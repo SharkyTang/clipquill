@@ -173,3 +173,55 @@ test('adapter never writes textarea values or selection and reports an evicted h
   assert.equal(readonly.value, original); assert.equal(readonly.selectionStart, 4);
   assert.deepEqual(times(result.draft), [[100,2000],[3000,5000],[6000,8000]]);
 });
+
+test('a cross-segment IME replacement commits once and native undo restores original cue boundaries and confirmations', () => {
+  const draft = fresh(); draft.blocks.forEach(block => { block.confirmed = true; });
+  const editor = createDraftEditor(draft), original = draftText(draft);
+  editor.compositionStart('full', field(original, 2, 11));
+  assert.equal(editor.input('full', field('第一kua三句。'), {isComposing:true}).changed, false);
+  const replacement = '第一跨段中文 English！三句。';
+  const committed = editor.compositionEnd('full', field(replacement));
+  assert.equal(committed.changed, true); assert.equal(editor.composing, false);
+  assert.deepEqual(committed.draft.blocks.map(block => block.sourceIds), [[0,1,2]]);
+  assert.deepEqual(times(committed.draft), [[100,8000]]);
+  assert.match(exportDraft(committed.draft).srt, /00:00:00,100 --> 00:00:08,000\n第一跨段中文 English！三句。/);
+  assert.equal(editor.input('full', field(replacement), {inputType:'insertFromComposition'}).changed, false);
+  const undo = change(editor, 'full', original, 0, 0, 'historyUndo');
+  assert.equal(undo.historyRestored, true);
+  assert.deepEqual(undo.draft.blocks.map(block => block.sourceIds), [[0],[1],[2]]);
+  assert.deepEqual(undo.draft.blocks.map(block => block.confirmed), [true,true,true]);
+  assert.deepEqual(times(undo.draft), [[100,2000],[3000,5000],[6000,8000]]);
+  const redo = change(editor, 'full', replacement, 0, 0, 'historyRedo');
+  assert.equal(redo.historyRestored, true); assert.deepEqual(times(redo.draft), [[100,8000]]);
+  assert.equal(redo.draft.blocks[0].confirmed, false);
+  assert.deepEqual(job.reviewSegments.map(segment => [segment.startMs,segment.endMs]), [[100,2000],[3000,5000],[6000,8000]]);
+});
+
+test('forward delete handles a whole surrogate-pair emoji in the selected repeated cue and only merges on newline deletion', () => {
+  const repeated = {...job,reviewSegments:job.reviewSegments.map(segment => ({...segment,text:'相同🙂'}))};
+  const draft = createDraft(repeated,createReview(repeated)); draft.blocks.forEach(block => { block.confirmed = true; });
+  const editor = createDraftEditor(draft), original = draftText(draft);
+  const deleted = change(editor,'full','相同🙂\n相同\n相同🙂',7,7,'deleteContentForward');
+  assert.deepEqual(deleted.draft.blocks.map(block => block.sourceIds), [[0],[1],[2]]);
+  assert.deepEqual(deleted.draft.blocks.map(block => block.confirmed), [true,false,true]);
+  assert.deepEqual(times(deleted.draft), [[100,2000],[3000,5000],[6000,8000]]);
+  assert.equal(change(editor,'full',original,0,0,'historyUndo').historyRestored,true);
+  const merged = change(editor,'full','相同🙂相同🙂\n相同🙂',4,4,'deleteContentForward');
+  assert.deepEqual(merged.draft.blocks.map(block => block.sourceIds), [[0,1],[2]]);
+  assert.deepEqual(times(merged.draft), [[100,5000],[6000,8000]]);
+  assert.equal(merged.draft.blocks[1].confirmed,true);
+});
+
+test('the character budget evicts old mappings without imposing a document-length cap or exporting stale text', () => {
+  const editor = createDraftEditor(fresh(),{maxSnapshots:120,maxCharacters:30}), original = draftText(editor.draft);
+  change(editor,'full',original+'甲',original.length,original.length);
+  change(editor,'full',original+'甲乙',original.length+1,original.length+1);
+  const undo = change(editor,'full',original,0,0,'historyUndo');
+  assert.equal(undo.historyRestored,false); assert.match(undo.warning,/缓存/);
+  const long = '文'.repeat(100000);
+  change(editor,'full',long,0,original.length,'insertFromPaste');
+  const output = exportDraft(editor.draft);
+  assert.equal(output.text.length,100000); assert.equal(output.text,long);
+  assert.match(output.srt,/00:00:00,100 --> 00:00:08,000/);
+  assert.deepEqual(times(editor.draft), [[100,8000]]);
+});

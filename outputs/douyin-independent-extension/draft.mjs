@@ -25,7 +25,8 @@ export function createDraft(job, review, saved) {
     durationMs:job.durationSeconds * 1000, edited:false};
   const rejected = () => ({...draft,restoreWarning:saved ? '已保存的当前稿与原文或时间不匹配，未加载该稿。旧稿仍保留，请检查当前内容后再导出。' : ''});
   if (saved?.version !== 1 || saved.jobId !== job.id || saved.sourceSignature !== draft.sourceSignature) return rejected();
-  if (!Array.isArray(saved.blocks) || !saved.blocks.length) return rejected();
+  if (!Array.isArray(saved.blocks) || !saved.blocks.length ||
+      saved.blocks.some(b => !b || typeof b !== 'object' || Array.isArray(b))) return rejected();
   const ids = saved.blocks.flatMap(b => Array.isArray(b.sourceIds) ? b.sourceIds : [-1]);
   const valid = ids.every((id,i) => Number.isInteger(id) && id >= 0 && id < sources.length && (!i || id > ids[i-1])) &&
     saved.blocks.every(b => typeof b.text === 'string' && Array.isArray(b.sourceIds) &&

@@ -10,6 +10,7 @@
 </head>
 <body>
 <a class="skip-link" href="#link">跳到视频来源</a>
+<a id="skipEditor" class="skip-link skip-editor" href="#transcriptText" hidden>跳到当前文案</a>
 <div class="app-shell">
   <aside class="sidebar" aria-label="ClipQuill 导航">
     <a class="brand" href="#workspace" aria-label="ClipQuill 视频处理"><img src="assets/brand/clipquill-logo.svg" width="38" height="38" alt=""><span>ClipQuill</span></a>
@@ -33,17 +34,28 @@
     <p id="themeState" class="theme-state" role="status" aria-live="polite"></p>
     <div class="page-content">
       <section class="source-card" aria-label="视频来源">
-        <div class="source-input"><span class="icon i-link" aria-hidden="true"></span><div><label for="link">视频来源 <span class="platform-label">抖音</span></label><textarea id="link" rows="1" placeholder="粘贴抖音分享内容或视频链接"></textarea></div></div>
+        <div id="sourceInput" class="source-input" data-expanded="false"><span class="icon i-link" aria-hidden="true"></span><div><label for="link">视频来源 <span class="platform-label">抖音</span></label><textarea id="link" rows="1" placeholder="粘贴抖音分享内容或视频链接" aria-describedby="sourceHint"></textarea></div><button id="expandSource" class="source-expand" aria-controls="link" aria-expanded="false">展开输入</button></div>
         <details id="existingPages"><summary><span class="icon i-desktop" aria-hidden="true"></span>已打开作品</summary><div class="source-popover"><p class="hint">选择目标抖音作品；不会把 ClipQuill 页面作为来源。</p><div class="row"><select id="tabs" aria-label="抖音作品页面"></select><button id="refresh">刷新列表</button></div><div class="row"><select id="existingAction" aria-label="处理方式"><option value="transcribe">提取文案</option><option value="download">下载视频</option></select><button id="current" class="primary">处理所选作品</button></div></div></details>
+        <a id="jumpEditor" class="jump-editor" href="#transcriptText" hidden>编辑当前文案</a>
       </section>
+      <p id="sourceHint" class="source-hint">支持完整分享文字；展开后可查看和编辑全部内容。</p>
       <div class="workspace-grid">
         <aside class="video-column">
           <section class="card video-card" aria-labelledby="videoHeading">
-            <div class="card-heading"><h2 id="videoHeading">视频信息</h2><span class="badge">抖音</span></div>
+            <div class="card-heading"><h2 id="videoHeading">视频信息</h2><span id="videoPlatform" class="badge">等待来源</span></div>
             <div id="videoEmpty" class="video-empty"><span class="icon i-link" aria-hidden="true"></span><strong>从一条视频开始</strong><p>粘贴分享内容，或选择已打开的作品。</p></div>
-            <section id="result" hidden><h3 id="title"></h3><p class="hint">已读取作品信息</p><details class="metadata-details"><summary>作品详细信息</summary><p id="facts"></p></details><p id="downloadState"></p></section>
+            <section id="result" hidden>
+              <div id="videoCover" class="video-cover" data-state="empty"><img id="coverImage" alt="" referrerpolicy="no-referrer" hidden><p id="coverState">暂无可用封面</p><span id="videoDuration" class="duration-badge" hidden></span></div>
+              <h3 id="title" tabindex="0"></h3>
+              <div id="videoAuthor" class="video-author" hidden><img id="authorAvatar" alt="" referrerpolicy="no-referrer" width="24" height="24" hidden><span id="authorName"></span></div>
+              <dl class="video-specs"><div><dt>时长</dt><dd id="durationValue">未知</dd></div><div><dt>分辨率</dt><dd id="resolutionValue">未知</dd></div><div><dt>文件大小</dt><dd id="sizeValue">未知</dd></div></dl>
+              <p id="sizeSource" class="hint"></p>
+              <details class="metadata-details"><summary>作品详细信息</summary><p id="facts"></p></details><p id="downloadState"></p>
+            </section>
             <div class="task-actions"><button id="transcribe" class="primary"><span class="icon i-document" aria-hidden="true"></span><span>提取文案<small>本地识别 · 自动复用已有视频</small></span></button><button id="start"><span class="icon i-download" aria-hidden="true"></span><span>下载视频<small>保存到本机下载文件夹</small></span></button></div>
-            <div class="task-status"><h3>处理状态</h3><p id="taskSource" class="hint" hidden></p><p id="status" role="status" aria-live="polite" data-state="waiting">等待视频链接。</p><div class="row"><button id="retry" hidden>重试本次操作</button><button id="showPage" hidden>打开待处理的抖音页面</button></div><div id="submissionNotice" class="workspace-notice" hidden><p>上次提交可能已被服务接收。请先核对本地服务与已有结果，避免重复识别。</p><button id="acknowledgeSubmission">已核对，允许再次提交</button></div></div>
+            <div class="task-status"><h3>处理状态</h3><p id="taskSource" class="hint" hidden></p>
+              <details id="taskProgress" class="task-progress" hidden><summary><span>处理进度</span><span id="progressSummary"></span></summary><ol id="phaseList" aria-label="本次任务阶段"></ol><p id="timingNote" class="hint"></p></details>
+              <p id="status" role="status" aria-live="polite" data-state="waiting">等待视频链接。</p><div class="row"><button id="retry" hidden>重试本次操作</button><button id="showPage" hidden>打开待处理的抖音页面</button></div><div id="submissionNotice" class="workspace-notice" hidden><p>上次提交可能已被服务接收。请先核对本地服务与已有结果，避免重复识别。</p><button id="acknowledgeSubmission">已核对，允许再次提交</button></div></div>
             <p class="hint keep-open">下载和提取时，请保持此工具页打开。</p>
           </section>
           <details id="options" class="card"><summary>辅助选项</summary><div class="details-content">
@@ -66,18 +78,20 @@
           <aside id="pendingResultNotice" class="workspace-notice" aria-label="新文案等待载入" hidden><p id="pendingResultText" role="status"></p><div class="row"><button id="applyResult" class="primary">保存当前稿并载入新文案</button><button id="dismissResult">保留当前稿</button></div></aside>
           <div id="emptyTranscript" class="empty-transcript"><img src="assets/brand/clipquill-logo.svg" alt="" width="64" height="64"><h2>让视频里的想法，成为文字</h2><p>选择视频后点击「提取文案」。<br>完成后可在这里编辑、回听、复制和导出。</p><span>语音识别由配套本地服务完成</span></div>
           <section id="transcriptSection" hidden>
-            <div class="draft-heading"><div><label for="transcriptText">当前文案 <span>可直接编辑</span></label><p id="transcriptFacts"></p></div><span id="saveState" role="status">当前稿</span></div>
+            <div class="draft-heading"><div><label for="transcriptText">当前文案 <span>可直接编辑</span></label><p id="transcriptFacts"></p></div><div class="save-controls"><span id="saveState" role="status" aria-live="polite" aria-atomic="true">当前稿</span><button id="retrySave" hidden>重试保存</button></div></div>
+            <div id="editorBody" class="editor-body">
             <textarea id="transcriptText" rows="10" aria-label="当前完整文案" aria-describedby="mappingHint" spellcheck="false"></textarea>
-            <div class="editor-toolbar"><div class="export-actions"><button id="copy" class="primary"><span class="icon i-copy" aria-hidden="true"></span>复制全文</button><button id="exportTxt">导出 TXT</button><button id="exportSrt">导出 SRT</button></div><span id="characterCount" class="hint"></span></div>
-            <p id="copyState" role="status" aria-live="polite"></p>
             <p id="mappingHint" class="hint">SRT 沿用原字幕时间；跨段修改会合并原时间区间，新增文字归入所在区间，不重新估算时间。</p>
             <details id="reviewDetails"><summary>回听与细致校对 <span class="hint">可选</span></summary><p id="technicalFacts" class="hint"></p><p id="reviewProgress" role="status"></p>
               <div id="reviewPanel" hidden><p class="hint">逐段回听当前稿。全文合并后，这里也按合并后的时间区间展示；勾选确认仅作自己的记录。</p>
-                <audio id="reviewAudio" controls preload="metadata" aria-label="原音回听"></audio><p id="audioState" class="hint"></p><select id="segmentSelect" aria-label="选择校对片段"></select>
+                <audio id="reviewAudio" controls preload="metadata" aria-label="原音回听"></audio><p id="audioState" class="hint" role="status"></p><select id="segmentSelect" aria-label="选择校对片段"></select>
                 <div class="row"><button id="previousSegment">上一段</button><span id="segmentPosition"></span><button id="nextSegment">下一段</button><button id="playSegment">回听这一段</button><button id="nextAttention">下一个重点</button></div>
                 <label for="segmentText">这一段的文案</label><textarea id="segmentText" rows="3"></textarea><p id="segmentOriginal" class="hint"></p><p id="segmentAttention" class="hint"></p><label class="confirm"><input id="confirmSegment" type="checkbox">我已核对这一段</label>
               </div><p id="transcriptWarnings" class="hint"></p>
             </details>
+            </div>
+            <div class="editor-toolbar" role="group" aria-label="当前稿复制与导出"><div class="export-actions"><button id="copy" class="primary"><span class="icon i-copy" aria-hidden="true"></span>复制全文</button><button id="exportTxt">导出 TXT</button><button id="exportSrt">导出 SRT</button></div><span id="characterCount" class="hint"></span></div>
+            <p id="copyState" role="status" aria-live="polite" aria-atomic="true"></p>
           </section>
           <div class="editor-footnote">自动识别可能有误，请结合原音核对。仅处理你有权保存、使用的内容。</div>
         </section>

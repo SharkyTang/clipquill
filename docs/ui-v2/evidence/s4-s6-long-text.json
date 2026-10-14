@@ -1,0 +1,17 @@
+{
+  "characters": "100,000 字符",
+  "kind": "isolated-fixture",
+  "length": 100000,
+  "pageWidth": 390,
+  "saveState": "已保存在本机",
+  "textareaScrollHeight": 162901,
+  "textareaScrollTop": 0,
+  "toolbarBottom": 787.3359375,
+  "viewport": 390,
+  "viewportHeight": 844,
+  "wheelScroll": {
+    "clientHeight": 358,
+    "scrollHeight": 162901,
+    "scrollTop": 844
+  }
+}

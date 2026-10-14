@@ -4,7 +4,7 @@
   if (pageURL.protocol !== 'http:' || pageURL.hostname !== '127.0.0.1')
     throw new Error('ClipQuill fixture 只能运行在隔离的本机 HTTP 预览。');
   const requestedScenario = pageURL.searchParams.get('scenario') || '';
-  const scenario = ['success','poll-error','submit-unknown','storage-error'].includes(requestedScenario) ? requestedScenario : '';
+  const scenario = ['success','running','failed','poll-error','submit-unknown','storage-error'].includes(requestedScenario) ? requestedScenario : '';
   const interactive = Boolean(scenario);
   const counts = {submissions:0,polls:0,nativeAttempts:0,downloadAttempts:0,blockedRequests:0};
   const requests = [];
@@ -138,6 +138,8 @@
       if (submittedJob && url.pathname === '/jobs/' + submittedJob.id && method === 'GET') {
         counts.polls++;
         if (scenario === 'poll-error' && counts.polls === 1) throw new TypeError('隔离 fixture：第一次任务查询连接失败。');
+        if (scenario === 'running') return response({...submittedJob,stage:'隔离测试：模拟语音识别与时间对齐'});
+        if (scenario === 'failed' && counts.polls >= 2) return response({...submittedJob,status:'failed',stage:'失败',finishedAt:Date.now()/1000,error:'隔离测试：模拟音频处理错误，未执行真实识别。'});
         if (counts.polls >= (scenario === 'poll-error' ? 2 : 3)) return response(completedJob(submittedJob));
         return response({...submittedJob,stage:counts.polls === 1 ? '隔离测试：模拟读取已复用文件' : '隔离测试：模拟语音识别阶段'});
       }

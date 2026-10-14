@@ -1,0 +1,695 @@
+--- a/outputs/douyin-independent-extension/tool.html
++++ b/outputs/douyin-independent-extension/tool.html
+@@ -10,6 +10,7 @@
+ </head>
+ <body>
+ <a class="skip-link" href="#link">跳到视频来源</a>
++<a id="skipEditor" class="skip-link skip-editor" href="#transcriptText" hidden>跳到当前文案</a>
+ <div class="app-shell">
+   <aside class="sidebar" aria-label="ClipQuill 导航">
+     <a class="brand" href="#workspace" aria-label="ClipQuill 视频处理"><img src="assets/brand/clipquill-logo.svg" width="38" height="38" alt=""><span>ClipQuill</span></a>
+@@ -33,9 +34,11 @@
+     <p id="themeState" class="theme-state" role="status" aria-live="polite"></p>
+     <div class="page-content">
+       <section class="source-card" aria-label="视频来源">
+-        <div class="source-input"><span class="icon i-link" aria-hidden="true"></span><div><label for="link">视频来源 <span class="platform-label">抖音</span></label><textarea id="link" rows="1" placeholder="粘贴抖音分享内容或视频链接"></textarea></div></div>
++        <div id="sourceInput" class="source-input" data-expanded="false"><span class="icon i-link" aria-hidden="true"></span><div><label for="link">视频来源 <span class="platform-label">抖音</span></label><textarea id="link" rows="1" placeholder="粘贴抖音分享内容或视频链接" aria-describedby="sourceHint"></textarea></div><button id="expandSource" class="source-expand" aria-controls="link" aria-expanded="false">展开输入</button></div>
+         <details id="existingPages"><summary><span class="icon i-desktop" aria-hidden="true"></span>已打开作品</summary><div class="source-popover"><p class="hint">选择目标抖音作品；不会把 ClipQuill 页面作为来源。</p><div class="row"><select id="tabs" aria-label="抖音作品页面"></select><button id="refresh">刷新列表</button></div><div class="row"><select id="existingAction" aria-label="处理方式"><option value="transcribe">提取文案</option><option value="download">下载视频</option></select><button id="current" class="primary">处理所选作品</button></div></div></details>
++        <a id="jumpEditor" class="jump-editor" href="#transcriptText" hidden>编辑当前文案</a>
+       </section>
++      <p id="sourceHint" class="source-hint">支持完整分享文字；展开后可查看和编辑全部内容。</p>
+       <div class="workspace-grid">
+         <aside class="video-column">
+           <section class="card video-card" aria-labelledby="videoHeading">
+@@ -75,18 +78,20 @@
+           <aside id="pendingResultNotice" class="workspace-notice" aria-label="新文案等待载入" hidden><p id="pendingResultText" role="status"></p><div class="row"><button id="applyResult" class="primary">保存当前稿并载入新文案</button><button id="dismissResult">保留当前稿</button></div></aside>
+           <div id="emptyTranscript" class="empty-transcript"><img src="assets/brand/clipquill-logo.svg" alt="" width="64" height="64"><h2>让视频里的想法，成为文字</h2><p>选择视频后点击「提取文案」。<br>完成后可在这里编辑、回听、复制和导出。</p><span>语音识别由配套本地服务完成</span></div>
+           <section id="transcriptSection" hidden>
+-            <div class="draft-heading"><div><label for="transcriptText">当前文案 <span>可直接编辑</span></label><p id="transcriptFacts"></p></div><span id="saveState" role="status">当前稿</span></div>
++            <div class="draft-heading"><div><label for="transcriptText">当前文案 <span>可直接编辑</span></label><p id="transcriptFacts"></p></div><div class="save-controls"><span id="saveState" role="status" aria-live="polite" aria-atomic="true">当前稿</span><button id="retrySave" hidden>重试保存</button></div></div>
++            <div id="editorBody" class="editor-body">
+             <textarea id="transcriptText" rows="10" aria-label="当前完整文案" aria-describedby="mappingHint" spellcheck="false"></textarea>
+-            <div class="editor-toolbar"><div class="export-actions"><button id="copy" class="primary"><span class="icon i-copy" aria-hidden="true"></span>复制全文</button><button id="exportTxt">导出 TXT</button><button id="exportSrt">导出 SRT</button></div><span id="characterCount" class="hint"></span></div>
+-            <p id="copyState" role="status" aria-live="polite"></p>
+             <p id="mappingHint" class="hint">SRT 沿用原字幕时间；跨段修改会合并原时间区间，新增文字归入所在区间，不重新估算时间。</p>
+             <details id="reviewDetails"><summary>回听与细致校对 <span class="hint">可选</span></summary><p id="technicalFacts" class="hint"></p><p id="reviewProgress" role="status"></p>
+               <div id="reviewPanel" hidden><p class="hint">逐段回听当前稿。全文合并后，这里也按合并后的时间区间展示；勾选确认仅作自己的记录。</p>
+-                <audio id="reviewAudio" controls preload="metadata" aria-label="原音回听"></audio><p id="audioState" class="hint"></p><select id="segmentSelect" aria-label="选择校对片段"></select>
++                <audio id="reviewAudio" controls preload="metadata" aria-label="原音回听"></audio><p id="audioState" class="hint" role="status"></p><select id="segmentSelect" aria-label="选择校对片段"></select>
+                 <div class="row"><button id="previousSegment">上一段</button><span id="segmentPosition"></span><button id="nextSegment">下一段</button><button id="playSegment">回听这一段</button><button id="nextAttention">下一个重点</button></div>
+                 <label for="segmentText">这一段的文案</label><textarea id="segmentText" rows="3"></textarea><p id="segmentOriginal" class="hint"></p><p id="segmentAttention" class="hint"></p><label class="confirm"><input id="confirmSegment" type="checkbox">我已核对这一段</label>
+               </div><p id="transcriptWarnings" class="hint"></p>
+             </details>
++            </div>
++            <div class="editor-toolbar" role="group" aria-label="当前稿复制与导出"><div class="export-actions"><button id="copy" class="primary"><span class="icon i-copy" aria-hidden="true"></span>复制全文</button><button id="exportTxt">导出 TXT</button><button id="exportSrt">导出 SRT</button></div><span id="characterCount" class="hint"></span></div>
++            <p id="copyState" role="status" aria-live="polite" aria-atomic="true"></p>
+           </section>
+           <div class="editor-footnote">自动识别可能有误，请结合原音核对。仅处理你有权保存、使用的内容。</div>
+         </section>
+--- a/outputs/douyin-independent-extension/tool.css
++++ b/outputs/douyin-independent-extension/tool.css
+@@ -82,10 +82,10 @@
+ .editor-card{display:flex;flex-direction:column;min-width:0;min-height:0;overflow:hidden}
+ .editor-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0 22px;min-height:65px;border-bottom:1px solid var(--cq-border-subtle);flex-shrink:0}.editor-tab{display:flex;align-items:center;gap:10px;align-self:stretch;border-bottom:2px solid var(--cq-accent-text);padding:0 2px;color:var(--cq-text)}.editor-tab>.icon{color:var(--cq-accent-text)}.editor-local{color:var(--cq-text-muted);font-size:11px}
+ .empty-transcript{display:flex;flex:1;min-height:300px;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px 20px}.empty-transcript img{margin-bottom:22px}.empty-transcript h2{font-size:19px;letter-spacing:.2px;font-weight:600}.empty-transcript p{font-size:14px;color:var(--cq-text-secondary);margin:13px 0 25px;line-height:1.9}.empty-transcript>span{font-size:11px;color:var(--cq-text-muted);border:1px solid var(--cq-border-subtle);padding:4px 10px;border-radius:6px}
+-#transcriptSection{display:flex;flex:1;flex-direction:column;min-height:0;padding:19px 22px 0;overflow:auto;scroll-padding:15px}
++#transcriptSection{display:flex;flex:1;flex-direction:column;min-height:0;padding:19px 22px 0;overflow:hidden}
+ .draft-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-shrink:0;margin-bottom:14px}.draft-heading label{font-size:13px;margin:0 0 3px}.draft-heading label span{font-size:11px;color:var(--cq-text-muted);font-weight:400;margin-left:7px}#transcriptFacts{color:var(--cq-text-muted);font-size:11px;max-width:65ch;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}#saveState{font-size:11px;color:var(--cq-text-muted);white-space:nowrap;padding-top:2px}
+ #transcriptText{flex:1;min-height:180px;resize:none;margin:0;border:1px solid var(--cq-border-control);background:var(--cq-editor);padding:20px 22px;font-size:16px;line-height:1.9;tab-size:2;scrollbar-gutter:stable}
+-.editor-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:17px 0 9px;flex-shrink:0;position:sticky;bottom:0;background:var(--cq-surface);z-index:2}.export-actions{display:flex;gap:8px;flex-wrap:wrap}.export-actions button{font-size:12px;min-height:40px;padding:9px 13px}.export-actions .icon{width:17px;height:17px}#characterCount{font-size:11px;white-space:nowrap}
++.editor-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:17px 0 9px;flex-shrink:0;background:var(--cq-surface);z-index:2;border-top:1px solid var(--cq-border-subtle)}.export-actions{display:flex;gap:8px;flex-wrap:wrap}.export-actions button{font-size:12px;min-height:40px;padding:9px 13px}.export-actions .icon{width:17px;height:17px}#characterCount{font-size:11px;white-space:nowrap}
+ #copyState{min-height:18px;font-size:12px;color:var(--cq-accent-text);flex-shrink:0}#copyState:empty{min-height:0}#mappingHint{font-size:11px;margin:5px 0 12px;flex-shrink:0}
+ #reviewDetails{border-top:1px solid var(--cq-border-subtle);flex-shrink:0;margin-top:3px;padding-bottom:12px}#reviewDetails>summary{padding:13px 0 10px;font-size:13px}#reviewDetails>summary .hint{margin-left:7px}#reviewDetails>p{margin:10px 0}#reviewPanel{padding:15px;border:1px solid var(--cq-border-subtle);border-radius:9px;background:var(--cq-editor);margin:12px 0}#reviewPanel .row button{font-size:12px}#reviewProgress{font-size:13px;color:var(--cq-accent-text)}#segmentSelect{width:100%;font-size:12px}#segmentPosition{font-size:12px;color:var(--cq-text-muted)}#segmentOriginal{white-space:pre-wrap}#segmentAttention{color:var(--cq-warning)}#reviewAudio{width:100%;margin:10px 0;height:40px}
+ .editor-footnote{font-size:10px;color:var(--cq-text-muted);padding:10px 20px;border-top:1px solid var(--cq-border-subtle);flex-shrink:0;text-align:center}
+@@ -96,8 +96,6 @@
+ @media(min-width:1024px) and (max-height:700px){.app-shell{height:auto;min-height:100dvh;overflow:visible}.sidebar{position:sticky;top:0;height:100dvh}.page-content,.workspace-grid{min-height:0}.workspace-grid{align-items:start}.video-column{overflow:visible}.editor-card{min-height:570px}#transcriptSection{overflow:visible}#transcriptText{height:300px;flex:none}}
+ @media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+ 
+-@media(min-width:1024px){#transcriptSection{scroll-padding-top:100px}.editor-toolbar{top:-19px}}
+-@media(min-width:1024px) and (max-width:1279px){.editor-toolbar{top:-16px}}
+ /* Real task/result notices, using the same semantic colors in both themes. */
+ .video-cover{position:relative;aspect-ratio:16/9;display:grid;place-items:center;overflow:hidden;background:var(--cq-editor);border:1px solid var(--cq-border-subtle);border-radius:9px;margin-bottom:12px}
+ .video-cover>img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
+@@ -129,3 +127,29 @@
+ #submissionNotice{margin-top:12px;padding:12px}#submissionNotice button{margin-top:10px;font-size:11px}#taskSource{font-size:11px;margin-top:8px;max-height:72px;overflow:auto}
+ #status[data-state="unknown"]{color:var(--cq-warning);background:var(--cq-warning-surface)}
+ @media(max-width:767px){.editor-card>.workspace-notice{margin:12px 12px 0;padding:12px}.workspace-notice .row{align-items:stretch}.workspace-notice button{flex:1}}
++
++/* S4: the native textarea keeps its identity/history; only the surrounding
++   body scrolls. Export controls sit outside that scroller. */
++.editor-body{display:flex;flex:1;flex-direction:column;min-height:0;overflow:auto;scroll-padding:12px;padding:3px 3px 0}
++.editor-body>#transcriptText{min-height:200px;flex-shrink:0}
++.save-controls{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap;min-width:0}
++#saveState{font-variant-numeric:tabular-nums}#saveState[data-state="saved"]{color:var(--cq-success)}#saveState[data-state="error"]{color:var(--cq-danger)}#saveState[data-state="warning"]{color:var(--cq-warning)}#saveState[data-state="pending"]{color:var(--cq-text-secondary)}
++#retrySave{font-size:11px;min-height:32px;padding:5px 8px;color:var(--cq-danger);border-color:var(--cq-danger)}
++#copyState{padding:0 0 9px;max-height:90px;overflow:auto}#copyState:empty{padding:0}
++#reviewDetails>summary{color:var(--cq-accent-text)}#reviewDetails[open]>summary{position:sticky;top:0;background:var(--cq-surface);z-index:1}
++#reviewPanel{margin-top:8px;padding:12px}
++/* S5: compact by default, explicit expansion never changes input text. */
++.source-card{align-items:flex-start;gap:12px}.source-input{padding:6px 12px;gap:10px}.source-input label{font-size:10px}
++#link{height:27px;resize:none;max-height:none}.source-input[data-expanded="true"] #link{height:108px;resize:vertical;min-height:70px;max-height:220px}
++.source-expand{font-size:10px;min-height:32px;padding:5px 7px;align-self:center;border-color:var(--cq-border-subtle);color:var(--cq-text-secondary)}
++#existingPages>summary{padding:13px 14px;min-height:55px}
++.source-hint{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
++.skip-editor:focus{left:165px}
++.nav-item,.source-expand,summary{transition:background-color 120ms,color 120ms}
++@media(max-width:1023px){.editor-card{overflow:visible}.editor-body{overflow:visible;flex:none}#transcriptSection{overflow:visible}.editor-toolbar{position:sticky;bottom:0;padding:12px 0;background:var(--cq-surface)}.editor-body>#transcriptText{height:360px;flex:none;resize:vertical;min-height:220px}.save-controls{justify-content:flex-start}.source-card{align-items:flex-start}}
++@media(max-width:767px){.source-input{padding:6px 10px}.source-expand{font-size:10px;max-width:55px}#existingPages>summary{min-height:40px;padding:8px 12px}.draft-heading{gap:9px}.save-controls{gap:8px}#saveState{font-size:11px}.editor-body{padding:3px 3px 0}.editor-toolbar{margin-top:4px}.editor-toolbar button{min-height:42px}.editor-footnote{font-size:11px}.sidebar nav{gap:4px}.nav-item{min-height:42px;width:42px}.topbar{height:auto;min-height:55px;padding-top:6px;padding-bottom:6px}}
++@media(min-width:1024px) and (max-height:700px){.editor-body{overflow:visible;flex:none}.editor-body>#transcriptText{height:300px;flex:none}.editor-toolbar{position:sticky;bottom:0}}
++@media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
++
++.jump-editor{display:none}
++@media(max-width:767px){.jump-editor{display:flex;align-items:center;justify-content:center;flex:1;min-height:42px;font-size:12px;padding:8px 12px;border:1px solid var(--cq-border-control);border-radius:10px;background:var(--cq-surface);color:var(--cq-accent-text)}#existingPages{flex:1;min-width:0;width:auto}#existingPages[open]{flex-basis:100%}.source-popover .row{align-items:stretch}.source-popover .row:last-child>*{flex:1}.video-cover{max-height:140px}.source-popover{max-width:100%}}
+--- a/outputs/douyin-independent-extension/tool.js
++++ b/outputs/douyin-independent-extension/tool.js
+@@ -105,6 +105,14 @@
+   try { localStorage.setItem(key,JSON.stringify(value)); return true; }
+   catch { el("copyState").textContent = "当前稿自动保存失败，请先复制或导出，避免刷新丢失。"; return false; }
+ }
++function saveStatus(text, state = 'saved') {
++  el('saveState').textContent = text; el('saveState').dataset.state = state;
++  el('retrySave').hidden = state !== 'error';
++}
++function restoreSaveStatus() {
++  if (unmappedText !== null) saveStatus('修改尚未保存','warning');
++  else if (draft) saveStatus(draftSaveFailed ? '保存失败 · 请导出' : '已保存在本机',draftSaveFailed ? 'error' : 'saved');
++}
+ function status(text, state = 'waiting', announce = true) {
+   if (disposed) return;
+   el('status').setAttribute?.('aria-live',announce ? 'polite' : 'off');
+@@ -244,6 +252,8 @@
+   }
+   review = draft.sources.length ? draftSegments(draft) : null; segmentIndex = 0;
+   el('transcriptSection').hidden = false;
++  el('skipEditor').hidden = false;
++  el('jumpEditor').hidden = false;
+   el('emptyTranscript').hidden = true;
+   el('recentState').textContent = '最近文案：' + (job.title || '上次提取的作品');
+   el('reviewDetails').open = false;
+@@ -255,13 +265,14 @@
+   resultCacheReady = persist('result-v1-' + job.id,job);
+   completedRefReady = resultCacheReady && persist('lastCompleted-v1',{id:job.id,workId:job.workId});
+   draftSaveFailed = !(resultCacheReady && completedRefReady);
+-  el('saveState').textContent = draftSaveFailed ? '保存失败 · 请导出' : '已保存在本机';
++  restoreSaveStatus();
+   updatePreview();
+   status(offline ? '已恢复本机当前稿，可编辑、复制和导出。回听时会自动连接本地助手。' : '文案已完成，可直接编辑、复制或导出。','complete');
+   audioSequence += 1; audioLoading = null;
+   if (audioURL) URL.revokeObjectURL(audioURL);
+   audioURL = null; cachedAudioJob = null;
+   el('reviewAudio').pause(); el('reviewAudio').removeAttribute('src'); el('reviewAudio').load(); stopAt = null;
++  el('reviewAudio').hidden = true;
+   el('playSegment').disabled = true;
+   el('audioState').textContent = job.hasAudio ? '展开后自动连接本地助手并加载原音。' : '此任务没有可用的回听音频；编辑与导出仍可使用。';
+ }
+@@ -299,13 +310,14 @@
+   }
+ }
+ function saveDraft() {
+-  el('saveState').textContent = '保存中…';
++  if (unmappedText !== null || editor?.composing) { restoreSaveStatus(); return false; }
++  saveStatus('保存中…','pending');
+   const draftSaved = persist('draft-v1-' + transcript.id,saveableDraft(draft));
+   if (!resultCacheReady) resultCacheReady = persist('result-v1-' + transcript.id,transcript);
+   if (resultCacheReady && !completedRefReady) completedRefReady = persist('lastCompleted-v1',{id:transcript.id,workId:transcript.workId});
+   const saved = draftSaved && resultCacheReady && completedRefReady;
+   draftSaveFailed = !saved;
+-  el('saveState').textContent = saved ? '已保存在本机' : '保存失败 · 请导出';
++  restoreSaveStatus();
+   updatePreview();
+   return saved;
+ }
+@@ -323,10 +335,11 @@
+ }
+ async function loadAudio(job) {
+   if (!el('reviewDetails').open || !review || !job.hasAudio) return;
+-  if (cachedAudioJob === job.id && audioURL) { el('playSegment').disabled = false; return; }
++  if (cachedAudioJob === job.id && audioURL) { el('reviewAudio').hidden = false; el('playSegment').disabled = false; return; }
+   const sequence = ++audioSequence;
+   const current = () => !disposed && sequence === audioSequence && transcript?.id === job.id && el('reviewDetails').open;
+   el('playSegment').disabled = true;
++  el('reviewAudio').hidden = true;
+   el('audioState').textContent = '正在加载本地回听音频…';
+   let loading = audioLoading;
+   if (!loading || loading.jobId !== job.id) {
+@@ -342,7 +355,7 @@
+     const blob = await loading.promise;
+     if (!current()) return;
+     if (audioURL) URL.revokeObjectURL(audioURL);
+-    audioURL = URL.createObjectURL(blob); cachedAudioJob = job.id; el('reviewAudio').src = audioURL;
++    audioURL = URL.createObjectURL(blob); cachedAudioJob = job.id; el('reviewAudio').src = audioURL; el('reviewAudio').hidden = false;
+     el('playSegment').disabled = false;
+     el('audioState').textContent = '原音已就绪，可用播放器调整音量和播放速度。';
+   } catch (error) { if (current()) el('audioState').textContent = error.message; }
+@@ -529,14 +542,16 @@
+ el('copy').addEventListener('click', async () => {
+   if (!transcript) return;
+   if (editor?.composing) { el('copyState').textContent = '正在输入，请完成当前文字后再复制。'; return; }
+-  const text = currentOutput().text, jobId = transcript.id;
++  const text = currentOutput().text, jobId = transcript.id, revision = editRevision;
+   try {
+     await navigator.clipboard.writeText(text);
+     if (!disposed && transcript?.id === jobId) el('copyState').textContent = currentOutput().text === text ? '已复制当前文案。' : '已复制点击时的文案；之后的修改尚未复制。';
+   }
+   catch {
+     if (disposed || transcript?.id !== jobId) return;
+-    el('transcriptText').focus(); el('transcriptText').select(); el('copyState').textContent = '已选中全文，请按系统复制快捷键复制。';
++    if (!editor?.composing && editRevision === revision && currentOutput().text === text) {
++      el('transcriptText').focus(); el('transcriptText').select(); el('copyState').textContent = '已选中全文，请按系统复制快捷键复制。';
++    } else el('copyState').textContent = '自动复制未成功；当前输入仍保留，请完成输入后手动选择并复制。';
+   }
+ });
+ async function resumeKnownJob(ref) {
+@@ -551,8 +566,10 @@
+   busy(true);
+   try {
+     if (!/^[a-f0-9]{32}$/.test(ref?.id || '') || !/^\d{10,30}$/.test(ref?.workId || '')) throw new Error('没有可恢复的识别任务。');
+-    await connectLocalService({onState: text => { if (currentOperation(context)) status(text); }});
+-    assertOperation(context); await followJob(ref,context);
++    await connectLocalService({onState: text => { if (currentSource(context)) status(text); }});
++    assertOperation(context);
++    if (currentSource(context)) el('serviceHelp').hidden = true;
++    await followJob(ref,context);
+   } catch (error) {
+     if (!error.jobFailed && /^[a-f0-9]{32}$/.test(ref?.id || '')) error.jobUncertain = true;
+     if (currentOperation(context)) { progressEvent(context,'fail',error); if (currentSource(context)) fail(error); }
+@@ -595,10 +612,11 @@
+   finally { el('checkConnection').disabled = false; }
+ });
+ function editResult(result) {
+-  if (result.pending) { el('saveState').textContent = '输入中 · 尚未保存'; return; }
++  if (result.pending) { saveStatus('输入中 · 尚未保存','pending'); return; }
+   if (result.changed) {
+     draft = result.draft; unmappedText = null; editRevision += 1; stopAt = null; el('reviewAudio').pause(); saveDraft();
+   }
++  else restoreSaveStatus();
+   if (result.warning) el('copyState').textContent = result.warning;
+ }
+ for (const [id,target] of [['transcriptText',() => 'full'],['segmentText',() => segmentIndex]]) {
+@@ -608,7 +626,7 @@
+     try { editResult(editor[method](target(),field,event)); }
+     catch(error) {
+       unmappedText = id === 'transcriptText' ? field.value : draft.blocks.map((block,index) => index === segmentIndex ? field.value : block.text).join('\n');
+-      editRevision += 1; el('saveState').textContent = '修改尚未保存';
++      editRevision += 1; saveStatus('修改尚未保存','warning');
+       el('copyState').textContent = error.message + ' 当前输入保留，可复制或导出 TXT。';
+     }
+   };
+@@ -624,7 +642,16 @@
+ }
+ el('confirmSegment').addEventListener('change',() => {
+   if (!draft || editor?.composing) return;
++  if (unmappedText !== null) {
++    el('confirmSegment').checked = draft.blocks[segmentIndex].confirmed;
++    el('copyState').textContent = '当前输入尚未完成时间映射，已保留输入；请先复制或导出 TXT，暂不能更新核对记录。';
++    return;
++  }
+   draft.blocks[segmentIndex].confirmed = el('confirmSegment').checked; editor.sync(draft); editRevision += 1; saveDraft();
++});
++el('retrySave').addEventListener('click',() => {
++  if (!draft || editor?.composing || unmappedText !== null) return;
++  if (saveDraft()) el('copyState').textContent = '当前稿已重新保存到本机。';
+ });
+ el('reviewDetails').addEventListener('toggle',() => {
+   if (el('reviewDetails').open && transcript) loadAudio(transcript);
+@@ -666,13 +693,19 @@
+ 
+ // Navigation opens existing UI; it never creates a new processing task.
+ el('appVersion').textContent = 'v' + chrome.runtime.getManifest().version;
+-function openSettings() { el('settingsPanel').open = true; el('settingsPanel').scrollIntoView({block:'nearest'}); }
++function openSettings() { el('settingsPanel').open = true; el('settingsPanel').scrollIntoView({block:'nearest'}); el('settingsPanel').querySelector?.('summary')?.focus(); }
+ el('openSettings').addEventListener('click',openSettings);
+-el('openServiceHelp').addEventListener('click',() => { el('serviceHelp').hidden = false; el('serviceHelp').open = true; el('serviceHelp').scrollIntoView({block:'nearest'}); });
++el('openServiceHelp').addEventListener('click',() => { el('serviceHelp').hidden = false; el('serviceHelp').open = true; el('serviceHelp').scrollIntoView({block:'nearest'}); el('serviceHelp').querySelector?.('summary')?.focus(); });
+ el('recentDraft').addEventListener('click',() => {
+   if (draft) { el('transcriptText').focus(); return; }
+   openSettings(); el('recentState').textContent = readSaved('lastTranscription') ? '有上次识别任务，可尝试恢复。' : '还没有可恢复的最近文案。';
+ });
++function expandSource(expanded) {
++  el('sourceInput').dataset.expanded = String(expanded);
++  el('expandSource').setAttribute?.('aria-expanded',String(expanded));
++  el('expandSource').textContent = expanded ? '收起输入' : '展开输入';
++}
++el('expandSource').addEventListener('click',() => expandSource(el('sourceInput').dataset.expanded !== 'true'));
+ el('applyResult').addEventListener('click',() => {
+   if (!pendingResult || running) return;
+   if (editor?.composing || unmappedText !== null) { el('copyState').textContent = '请先完成当前文字输入，再载入新文案。'; return; }
+@@ -688,9 +721,13 @@
+   status('已允许手动重新提交。请确认上次任务已核对，再点击提取文案。','waiting');
+ });
+ document.addEventListener?.('keydown',event => {
+-  if (event.key !== 'Escape' || !el('existingPages').open) return;
+-  el('existingPages').open = false;
+-  el('existingPages').querySelector?.('summary')?.focus();
++  if (event.key !== 'Escape' || event.isComposing || event.keyCode === 229) return;
++  if (el('existingPages').open) {
++    el('existingPages').open = false;
++    el('existingPages').querySelector?.('summary')?.focus();
++  } else if (el('sourceInput').dataset.expanded === 'true') {
++    expandSource(false); el('expandSource').focus();
++  }
+ });
+ globalThis.addEventListener?.('pagehide',event => {
+   if (event.persisted) return;
+--- a/outputs/douyin-independent-extension/draft.mjs
++++ b/outputs/douyin-independent-extension/draft.mjs
+@@ -25,7 +25,8 @@
+     durationMs:job.durationSeconds * 1000, edited:false};
+   const rejected = () => ({...draft,restoreWarning:saved ? '已保存的当前稿与原文或时间不匹配，未加载该稿。旧稿仍保留，请检查当前内容后再导出。' : ''});
+   if (saved?.version !== 1 || saved.jobId !== job.id || saved.sourceSignature !== draft.sourceSignature) return rejected();
+-  if (!Array.isArray(saved.blocks) || !saved.blocks.length) return rejected();
++  if (!Array.isArray(saved.blocks) || !saved.blocks.length ||
++      saved.blocks.some(b => !b || typeof b !== 'object' || Array.isArray(b))) return rejected();
+   const ids = saved.blocks.flatMap(b => Array.isArray(b.sourceIds) ? b.sourceIds : [-1]);
+   const valid = ids.every((id,i) => Number.isInteger(id) && id >= 0 && id < sources.length && (!i || id > ids[i-1])) &&
+     saved.blocks.every(b => typeof b.text === 'string' && Array.isArray(b.sourceIds) &&
+--- a/scripts/extension-tests/tool-page.test.mjs
++++ b/scripts/extension-tests/tool-page.test.mjs
+@@ -22,15 +22,17 @@
+   const objectURLs = new Map(), failWrites = new Set(fixture.failWrites || []);
+   for (const match of html.matchAll(/\bid="([^"]+)"[^>]*>/g)) {
+     const handlers = new Map();
++    const attributes = new Map([...match[0].matchAll(/\b([\w-]+)="([^"]*)"/g)].map(attribute => [attribute[1],attribute[2]]));
+     elements.set(match[1], {hidden: /\bhidden\b/.test(match[0]), disabled: false, checked: false, open: false,
+-      value: '', textContent: '', dataset: {}, options: [], handlers, selectionStart: 0, selectionEnd: 0,
++      value: '', textContent: '', dataset: {}, options: [], handlers, attributes, selectionStart: 0, selectionEnd: 0,
++      setAttribute(name,value) { attributes.set(name,String(value)); }, getAttribute(name) { return attributes.get(name) ?? null; },
+       addEventListener(name, listener) { handlers.set(name, [...handlers.get(name) || [], listener]); },
+       async emit(name, event = {}) { for (const listener of handlers.get(name) || []) await listener(event); },
+       async click() { if (!this.disabled) return this.emit('click'); },
+       replaceChildren(...children) { this.options = children; this.value = children[0]?.value || ''; },
+       append(child) { this.options.push(child); if (this.options.length === 1) this.value = child.value; },
+       focus() { focus.push(match[1]); }, select() { this.selectionStart = 0; this.selectionEnd = this.value.length; },
+-      scrollIntoView() {}, pause() {}, load() {}, removeAttribute(name) { delete this[name]; }
++      scrollIntoView() {}, pause() {}, load() {}, removeAttribute(name) { attributes.delete(name); delete this[name]; }
+     });
+   }
+   elements.get('quality').value = '720';
+@@ -59,6 +61,7 @@
+     static revokeObjectURL(value) { objectURLs.delete(value); }
+   }
+   const navigator = {clipboard:{async writeText(text) {
++    if (fixture.clipboardWrite) return fixture.clipboardWrite(text);
+     if (fixture.clipboardError) throw new Error('fixture clipboard unavailable');
+     copied.push(text);
+   }}};
+@@ -148,10 +151,10 @@
+   assert.equal(new Set(ids).size,ids.length,'duplicate IDs silently bind events to the wrong control');
+   const f = render();
+   const bindings = {
+-    start:'click',transcribe:'click',current:'click',refresh:'click',showPage:'click',resume:'click',retry:'click',
++    start:'click',transcribe:'click',current:'click',refresh:'click',showPage:'click',resume:'click',retry:'click',expandSource:'click',
+     dismissLoginTip:'click',loginDouyin:'click',exportTxt:'click',exportSrt:'click',copy:'click',importTerms:'click',
+     enableTerms:'change',link:'input',tabs:'change',checkConnection:'click',transcriptText:'input',segmentText:'input',
+-    confirmSegment:'change',reviewDetails:'toggle',segmentSelect:'change',previousSegment:'click',nextSegment:'click',
++    confirmSegment:'change',retrySave:'click',reviewDetails:'toggle',segmentSelect:'change',previousSegment:'click',nextSegment:'click',
+     playSegment:'click',reviewAudio:'timeupdate',nextAttention:'click'
+   };
+   for (const [name,event] of Object.entries(bindings)) assert.ok(f.elements.get(name)?.handlers.has(event),name + ' is no longer wired');
+@@ -185,6 +188,32 @@
+   await f.elements.get('recentDraft').click();
+   assert.equal(f.focus.at(-1),'transcriptText');
+   assert.equal(serviceCalls,0); assert.deepEqual(f.messages,[]);
++});
++
++test('expanding and collapsing a complete share text preserves source and current draft without creating work', async () => {
++  let serviceCalls = 0;
++  const f = render(cachedDraft(),undefined,{ensureLocalService:async() => { serviceCalls += 1; }});
++  const link = f.elements.get('link'), field = f.elements.get('transcriptText'), toggle = f.elements.get('expandSource');
++  const shareText = '6.58 复制打开抖音，看看作者的作品！\n' + '完整分享说明，包含空格与中文。 '.repeat(30) + '\n' + url + ' 复制这段文字打开';
++  const draftText = field.value, previousWrites = [...f.writes];
++  link.value = shareText; link.selectionStart = 8; link.selectionEnd = 12;
++  field.selectionStart = 2; field.selectionEnd = 6;
++  assert.equal(toggle.getAttribute('aria-expanded'),'false');
++  await toggle.click();
++  assert.equal(f.elements.get('sourceInput').dataset.expanded,'true');
++  assert.equal(toggle.getAttribute('aria-expanded'),'true');
++  assert.equal(toggle.textContent,'收起输入');
++  await toggle.click();
++  assert.equal(f.elements.get('sourceInput').dataset.expanded,'false');
++  assert.equal(toggle.getAttribute('aria-expanded'),'false');
++  assert.equal(toggle.textContent,'展开输入');
++  assert.equal(link.value,shareText);
++  assert.equal(link.selectionStart,8); assert.equal(link.selectionEnd,12);
++  assert.equal(field.value,draftText);
++  assert.equal(field.selectionStart,2); assert.equal(field.selectionEnd,6);
++  assert.deepEqual(f.writes,previousWrites);
++  assert.equal(serviceCalls,0);
++  assert.deepEqual(f.messages,[]); assert.deepEqual(f.downloads,[]);
+ });
+ 
+ test('source selector rejects the extension itself and passes only the chosen supported work to the worker', async () => {
+@@ -248,6 +277,127 @@
+   assert.equal(f.copied[0],field.value); assert.equal(await f.exports[0].blob.text(),field.value);
+ });
+ 
++for (const initiallyUnsaved of [false,true]) {
++  test(`cancelled IME composition restores the actual ${initiallyUnsaved ? 'failed' : 'saved'} draft state`, async () => {
++    const f = render(cachedDraft());
++    const field = f.elements.get('transcriptText');
++    const draftKey = 'draft-v1-' + completedJob.id;
++    if (initiallyUnsaved) {
++      f.failWrites.add(draftKey);
++      field.value = '当前修改保存失败。\n第二句。';
++      await field.emit('input',{inputType:'insertText'});
++      assert.match(f.elements.get('saveState').textContent,/保存失败/);
++    }
++    const original = field.value, persisted = f.saved.get(draftKey);
++    await field.emit('compositionstart');
++    field.value = original + '临时拼音';
++    await field.emit('input',{isComposing:true});
++    assert.match(f.elements.get('saveState').textContent,/输入中/);
++    field.value = original;
++    await field.emit('compositionend');
++    assert.equal(field.value,original);
++    assert.equal(f.saved.get(draftKey),persisted,'cancelled composition must not save intermediate text');
++    assert.match(f.elements.get('saveState').textContent,initiallyUnsaved ? /保存失败/ : /已保存在本机/);
++  });
++}
++
++test('confirming a review segment cannot replace text that failed subtitle mapping or claim it was saved', async () => {
++  const f = render(cachedDraft(),undefined,{
++    createDraftEditor(initial) {
++      const current = editor.createDraftEditor(initial), input = current.input;
++      current.input = (target,...args) => {
++        if (target === 'full') throw new Error('隔离测试：字幕映射暂不可用');
++        return input(target,...args);
++      };
++      return current;
++    }
++  });
++  const field = f.elements.get('transcriptText'), key = 'draft-v1-' + completedJob.id;
++  const persisted = f.saved.get(key), raw = '不能被旧稿替换的当前输入。\n第二句。';
++  field.value = raw;
++  await field.emit('input',{inputType:'insertText'});
++  assert.match(f.elements.get('saveState').textContent,/尚未保存/);
++  f.elements.get('confirmSegment').checked = true;
++  await f.elements.get('confirmSegment').emit('change');
++  assert.equal(field.value,raw,'review confirmation must not redraw the stale mapped draft over the visible input');
++  assert.equal(f.saved.get(key),persisted,'an unmapped visible edit is not a successfully saved current draft');
++  assert.doesNotMatch(f.elements.get('saveState').textContent,/已保存在本机/);
++  await f.elements.get('copy').click();
++  await f.elements.get('exportTxt').click();
++  assert.equal(f.copied.at(-1),raw);
++  assert.equal(await f.exports.at(-1).blob.text(),raw);
++});
++
++test('a delayed clipboard rejection cannot select all or interrupt a newer IME composition', async () => {
++  const clipboard = deferred();
++  const f = render(cachedDraft(),undefined,{}, {clipboardWrite:() => clipboard.promise});
++  const field = f.elements.get('transcriptText');
++  const copying = f.elements.get('copy').click();
++  field.selectionStart = 0; field.selectionEnd = 2;
++  await field.emit('compositionstart');
++  field.value = '正在输入的新文案。\n第二句。';
++  field.selectionStart = 3; field.selectionEnd = 3;
++  await field.emit('input',{isComposing:true});
++  clipboard.reject(new Error('隔离测试：剪贴板权限稍后被拒绝'));
++  await copying;
++  assert.equal(field.selectionStart,3,'a failed previous copy must not change the current IME selection');
++  assert.equal(field.selectionEnd,3);
++  assert.equal(field.value,'正在输入的新文案。\n第二句。');
++  assert.equal(f.focus.includes('transcriptText'),false,'do not steal focus back into the editor after asynchronous failure');
++  assert.match(f.elements.get('copyState').textContent,/复制|剪贴板|快捷键/);
++  await field.emit('compositionend');
++});
++
++for (const failureKind of ['draft','result-cache']) {
++  test(`manual save retry recovers a ${failureKind} write failure without another edit or lost selection`, async () => {
++    const draftKey = 'draft-v1-' + completedJob.id, cacheKey = 'result-v1-' + completedJob.id;
++    const failingKey = failureKind === 'draft' ? draftKey : cacheKey;
++    const f = render(cachedDraft(),undefined,{}, {failWrites:failureKind === 'result-cache' ? [failingKey] : []});
++    const field = f.elements.get('transcriptText');
++    if (failureKind === 'draft') {
++      f.failWrites.add(failingKey);
++      field.value = '等待手动重试保存的当前稿。\n第二句。';
++      await field.emit('input',{inputType:'insertText'});
++    }
++    assert.match(f.elements.get('saveState').textContent,/保存失败/);
++    assert.equal(f.elements.get('saveState').dataset.state,'error');
++    assert.equal(f.elements.get('retrySave').hidden,false);
++    const expected = field.value;
++    field.selectionStart = 2; field.selectionEnd = 5;
++    f.failWrites.delete(failingKey);
++    await f.elements.get('retrySave').click();
++    assert.equal(field.value,expected);
++    assert.equal(field.selectionStart,2);
++    assert.equal(field.selectionEnd,5);
++    assert.equal(JSON.parse(f.saved.get(draftKey)).blocks.map(block => block.text).join('\n'),expected);
++    assert.equal(JSON.parse(f.saved.get(cacheKey)).id,completedJob.id);
++    assert.equal(JSON.parse(f.saved.get('lastCompleted-v1')).id,completedJob.id);
++    assert.equal(f.elements.get('saveState').dataset.state,'saved');
++    assert.equal(f.elements.get('retrySave').hidden,true);
++    assert.deepEqual(f.messages,[]);
++  });
++}
++
++test('a queued manual save retry cannot save intermediate IME text', async () => {
++  const f = render(cachedDraft());
++  const field = f.elements.get('transcriptText'), draftKey = 'draft-v1-' + completedJob.id;
++  f.failWrites.add(draftKey);
++  field.value = '第一次保存失败的修改。\n第二句。';
++  await field.emit('input',{inputType:'insertText'});
++  assert.equal(f.elements.get('retrySave').hidden,false);
++  const persisted = f.saved.get(draftKey);
++  await field.emit('compositionstart');
++  field.value = '还在输入法中。\n第二句。';
++  await field.emit('input',{isComposing:true});
++  f.failWrites.delete(draftKey);
++  await f.elements.get('retrySave').click();
++  assert.equal(field.value,'还在输入法中。\n第二句。');
++  assert.equal(f.saved.get(draftKey),persisted);
++  assert.equal(f.elements.get('saveState').dataset.state,'pending');
++  await field.emit('compositionend');
++  assert.equal(JSON.parse(f.saved.get(draftKey)).blocks.map(block => block.text).join('\n'),field.value);
++});
++
+ test('cached-result storage failure never reports a saved draft or blocks its offline text', () => {
+   const f = render(cachedDraft(),undefined,{}, {failWrites:['result-v1-' + completedJob.id]});
+   assert.equal(f.elements.get('transcriptText').value,'保留我的修改。\n第二句。');
+@@ -276,9 +426,9 @@
+     variants:[{width:1280,height:720,size:123,format:'mp4',isH265:0,urls:['https://v3-dy-o.zjcdn.com/current.mp4']}],...extra};
+ }
+ function deferred() {
+-  let resolve;
+-  const promise = new Promise(done => { resolve = done; });
+-  return {promise,resolve};
++  let resolve, reject;
++  const promise = new Promise((done,failed) => { resolve = done; reject = failed; });
++  return {promise,resolve,reject};
+ }
+ 
+ test('card size remains page-advertised until Chrome confirms actual file bytes', async () => {
+--- a/scripts/extension-tests/task-contract.test.mjs
++++ b/scripts/extension-tests/task-contract.test.mjs
+@@ -280,12 +280,51 @@
+   const sound=deferred();
+   const f=render({async localAudio(){return sound.promise;}},{saved:cache()});
+   const details=f.elements.get('reviewDetails');
++  assert.equal(f.elements.get('reviewAudio').hidden,true,'a restored transcript must not expose an empty audio player');
+   details.open=true;const opening=details.emit('toggle');await until(()=>f.audio.length===1);
++  assert.equal(f.elements.get('reviewAudio').hidden,true,'the native player stays hidden while its audio blob is pending');
+   details.open=false;await details.emit('toggle');details.open=true;const reopening=details.emit('toggle');
+   await settle();assert.equal(f.audio.length,1,'same-job audio must not duplicate inflight requests');
++  assert.equal(f.elements.get('reviewAudio').hidden,true);
+   details.open=false;await details.emit('toggle');sound.resolve(new Blob(['isolated audio']));await Promise.all([opening,reopening]);await settle();
+   assert.equal(details.open,false);
+   assert.equal(f.elements.get('playSegment').disabled,true,'late audio should not activate a collapsed review');
++  assert.equal(f.elements.get('reviewAudio').hidden,true,'a stale response for a collapsed review must not expose its player');
++  assert.equal(f.elements.get('reviewAudio').src,undefined);
++  details.open=true;await details.emit('toggle');await until(()=>Boolean(f.elements.get('reviewAudio').src));
++  const readySource=f.elements.get('reviewAudio').src;
++  assert.equal(f.elements.get('reviewAudio').hidden,false);assert.equal(f.elements.get('playSegment').disabled,false);
++  assert.equal(await f.objectURLs.get(readySource).text(),'isolated audio');
++  const requestsBeforeCachedOpen=f.audio.length;
++  details.open=false;await details.emit('toggle');details.open=true;await details.emit('toggle');
++  assert.equal(f.elements.get('reviewAudio').hidden,false);assert.equal(f.elements.get('reviewAudio').src,readySource);
++  assert.equal(f.audio.length,requestsBeforeCachedOpen,'opening cached audio should reuse the validated blob');
++});
++
++test('audio failure preserves the draft and hides the empty player until a successful retry returns a blob', async () => {
++  const sound=deferred();let loads=0;
++  const f=render({async localAudio(){return ++loads===1?sound.promise:new Blob(['retry audio']);}},{saved:cache()});
++  const current=f.elements.get('transcriptText').value,details=f.elements.get('reviewDetails');
++  details.open=true;await details.emit('toggle');await until(()=>f.audio.length===1);
++  assert.equal(f.elements.get('reviewAudio').hidden,true);assert.equal(f.elements.get('playSegment').disabled,true);
++  sound.reject(new Error('测试音频加载失败'));
++  await until(()=>f.elements.get('audioState').textContent==='测试音频加载失败');
++  assert.equal(f.elements.get('reviewAudio').hidden,true);assert.equal(f.elements.get('reviewAudio').src,undefined);
++  assert.equal(f.elements.get('playSegment').disabled,true);assert.equal(f.elements.get('transcriptText').value,current);
++  details.open=false;await details.emit('toggle');details.open=true;await details.emit('toggle');
++  await until(()=>Boolean(f.elements.get('reviewAudio').src));
++  assert.equal(f.audio.length,2);assert.equal(f.elements.get('reviewAudio').hidden,false);
++  assert.equal(await f.objectURLs.get(f.elements.get('reviewAudio').src).text(),'retry audio');
++  assert.equal(f.elements.get('transcriptText').value,current);
++});
++
++test('a task without review audio never exposes a broken player or starts an audio request', async () => {
++  const saved=cache();saved.set('result-v1-'+complete.id,JSON.stringify({...complete,hasAudio:false}));
++  const f=render({}, {saved}),details=f.elements.get('reviewDetails');
++  details.open=true;await details.emit('toggle');await settle();
++  assert.equal(f.elements.get('reviewAudio').hidden,true);assert.equal(f.elements.get('reviewAudio').src,undefined);
++  assert.equal(f.elements.get('playSegment').disabled,true);assert.match(f.elements.get('audioState').textContent,/没有可用的回听音频/);
++  assert.deepEqual(f.audio,[]);assert.equal(f.elements.get('transcriptText').value,'人工修改仍需保留。\n原始第二句。');
+ });
+ 
+ test('page disposal ignores late job completion and prevents any new operation', async () => {
+@@ -334,12 +373,16 @@
+     async localAudio(id){return id===complete.id?oldAudio.promise:new Blob(['new job audio']);}},{saved:cache()});
+   const details=f.elements.get('reviewDetails');details.open=true;const oldLoading=details.emit('toggle');
+   await until(()=>f.audio.length===1);
++  assert.equal(f.elements.get('reviewAudio').hidden,true);
+   await f.elements.get('transcribe').click();await f.elements.get('applyResult').click();
++  assert.equal(f.elements.get('reviewAudio').hidden,true,'changing drafts must remove the previous empty or ready player');
+   details.open=true;await details.emit('toggle');await until(()=>f.audio.length===2);
+   await settle();const newSource=f.elements.get('reviewAudio').src;
+   assert.ok(newSource);assert.equal(await f.objectURLs.get(newSource).text(),'new job audio');
++  assert.equal(f.elements.get('reviewAudio').hidden,false);
+   oldAudio.resolve(new Blob(['late old job audio']));await oldLoading;await settle();
+   assert.equal(f.elements.get('reviewAudio').src,newSource);
++  assert.equal(f.elements.get('reviewAudio').hidden,false,'an older response cannot hide the newer ready player');
+   assert.equal(await f.objectURLs.get(newSource).text(),'new job audio');
+ });
+ 
+@@ -407,6 +450,25 @@
+   assert.equal(f.elements.get('taskProgress').hidden,true);
+   assert.equal(f.elements.get('transcriptText').value,current);
+   assert.deepEqual(f.requests,['/jobs/'+job.id]);
++});
++
++test('a delayed restore connection callback for A cannot overwrite status after switching the source to B', async () => {
++  const connection=deferred();let onState;
++  const f=render({ensureLocalService(options){onState=options.onState;return connection.promise;}},{saved:cache()});
++  const current=f.elements.get('transcriptText').value;
++  const operation=f.elements.get('resume').click();await until(()=>typeof onState==='function');
++  onState('正在连接作品 A 的本地助手');
++  assert.equal(f.elements.get('status').textContent,'正在连接作品 A 的本地助手','the callback should work while A is current');
++  f.elements.get('link').value='https://www.douyin.com/video/1111111111111111111';await f.elements.get('link').emit('input');
++  const statusBefore=f.elements.get('status').textContent;
++  onState('作品 A 的迟到连接消息');
++  assert.equal(f.elements.get('status').textContent,statusBefore);
++  assert.equal(f.elements.get('taskProgress').hidden,true);
++  connection.resolve(ready);await operation;
++  assert.equal(f.elements.get('status').textContent,statusBefore);
++  assert.equal(f.elements.get('transcriptText').value,current);
++  assert.deepEqual(f.requests,['/jobs/'+job.id]);
++  assert.deepEqual(f.messages,[]);assert.deepEqual(f.downloads,[]);
+ });
+ 
+ test('a failed submitted-task reference stays recoverable in this page without claiming it survived reopening', async () => {
+--- a/scripts/extension-tests/editor.test.mjs
++++ b/scripts/extension-tests/editor.test.mjs
+@@ -173,3 +173,55 @@
+   assert.equal(readonly.value, original); assert.equal(readonly.selectionStart, 4);
+   assert.deepEqual(times(result.draft), [[100,2000],[3000,5000],[6000,8000]]);
+ });
++
++test('a cross-segment IME replacement commits once and native undo restores original cue boundaries and confirmations', () => {
++  const draft = fresh(); draft.blocks.forEach(block => { block.confirmed = true; });
++  const editor = createDraftEditor(draft), original = draftText(draft);
++  editor.compositionStart('full', field(original, 2, 11));
++  assert.equal(editor.input('full', field('第一kua三句。'), {isComposing:true}).changed, false);
++  const replacement = '第一跨段中文 English！三句。';
++  const committed = editor.compositionEnd('full', field(replacement));
++  assert.equal(committed.changed, true); assert.equal(editor.composing, false);
++  assert.deepEqual(committed.draft.blocks.map(block => block.sourceIds), [[0,1,2]]);
++  assert.deepEqual(times(committed.draft), [[100,8000]]);
++  assert.match(exportDraft(committed.draft).srt, /00:00:00,100 --> 00:00:08,000\n第一跨段中文 English！三句。/);
++  assert.equal(editor.input('full', field(replacement), {inputType:'insertFromComposition'}).changed, false);
++  const undo = change(editor, 'full', original, 0, 0, 'historyUndo');
++  assert.equal(undo.historyRestored, true);
++  assert.deepEqual(undo.draft.blocks.map(block => block.sourceIds), [[0],[1],[2]]);
++  assert.deepEqual(undo.draft.blocks.map(block => block.confirmed), [true,true,true]);
++  assert.deepEqual(times(undo.draft), [[100,2000],[3000,5000],[6000,8000]]);
++  const redo = change(editor, 'full', replacement, 0, 0, 'historyRedo');
++  assert.equal(redo.historyRestored, true); assert.deepEqual(times(redo.draft), [[100,8000]]);
++  assert.equal(redo.draft.blocks[0].confirmed, false);
++  assert.deepEqual(job.reviewSegments.map(segment => [segment.startMs,segment.endMs]), [[100,2000],[3000,5000],[6000,8000]]);
++});
++
++test('forward delete handles a whole surrogate-pair emoji in the selected repeated cue and only merges on newline deletion', () => {
++  const repeated = {...job,reviewSegments:job.reviewSegments.map(segment => ({...segment,text:'相同🙂'}))};
++  const draft = createDraft(repeated,createReview(repeated)); draft.blocks.forEach(block => { block.confirmed = true; });
++  const editor = createDraftEditor(draft), original = draftText(draft);
++  const deleted = change(editor,'full','相同🙂\n相同\n相同🙂',7,7,'deleteContentForward');
++  assert.deepEqual(deleted.draft.blocks.map(block => block.sourceIds), [[0],[1],[2]]);
++  assert.deepEqual(deleted.draft.blocks.map(block => block.confirmed), [true,false,true]);
++  assert.deepEqual(times(deleted.draft), [[100,2000],[3000,5000],[6000,8000]]);
++  assert.equal(change(editor,'full',original,0,0,'historyUndo').historyRestored,true);
++  const merged = change(editor,'full','相同🙂相同🙂\n相同🙂',4,4,'deleteContentForward');
++  assert.deepEqual(merged.draft.blocks.map(block => block.sourceIds), [[0,1],[2]]);
++  assert.deepEqual(times(merged.draft), [[100,5000],[6000,8000]]);
++  assert.equal(merged.draft.blocks[1].confirmed,true);
++});
++
++test('the character budget evicts old mappings without imposing a document-length cap or exporting stale text', () => {
++  const editor = createDraftEditor(fresh(),{maxSnapshots:120,maxCharacters:30}), original = draftText(editor.draft);
++  change(editor,'full',original+'甲',original.length,original.length);
++  change(editor,'full',original+'甲乙',original.length+1,original.length+1);
++  const undo = change(editor,'full',original,0,0,'historyUndo');
++  assert.equal(undo.historyRestored,false); assert.match(undo.warning,/缓存/);
++  const long = '文'.repeat(100000);
++  change(editor,'full',long,0,original.length,'insertFromPaste');
++  const output = exportDraft(editor.draft);
++  assert.equal(output.text.length,100000); assert.equal(output.text,long);
++  assert.match(output.srt,/00:00:00,100 --> 00:00:08,000/);
++  assert.deepEqual(times(editor.draft), [[100,8000]]);
++});
+--- a/scripts/extension-tests/draft.test.mjs
++++ b/scripts/extension-tests/draft.test.mjs
+@@ -114,3 +114,15 @@
+   const beyond={...source,reviewSegments:[{...source.reviewSegments[0],endMs:174243}]};
+   assert.equal(exportDraft(createDraft(beyond,createReview(beyond))).srt,null);
+ });
++
++test('JSON-valid malformed saved blocks fall back to the original current draft without mutation or losing safe SRT',()=>{
++  const original=fresh(), saved=JSON.parse(JSON.stringify(saveableDraft(editBlock(original,0,'应保留在原记录中的旧编辑。'))));
++  for(const blocks of [null,[],[null],[saved.blocks[0],null],[7,'bad'],[{sourceIds:[0],text:null}], [{sourceIds:null,text:'坏映射'}]]) {
++    const record={...saved,blocks}; const before=JSON.stringify(record);
++    const restored=createDraft(job,createReview(job),record);
++    assert.equal(draftText(restored),job.text);
++    assert.match(restored.restoreWarning,/未加载|不匹配/);
++    assert.equal(exportDraft(restored).srt,exportDraft(original).srt);
++    assert.equal(JSON.stringify(record),before,'rejected storage data must remain untouched for recovery');
++  }
++});

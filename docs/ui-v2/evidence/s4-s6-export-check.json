@@ -1,0 +1,17 @@
+{
+  "kind": "isolated-fixture-export",
+  "notRealChrome": true,
+  "txtCurrentDraftMatches": true,
+  "srtCurrentDraftMatches": true,
+  "srtIntervalsMs": [
+    [
+      0,
+      14500
+    ]
+  ],
+  "mapping": "Existing source outer interval retained after whole-text edit; no timing estimation",
+  "outputNames": [
+    "1000000000000000001_文案_当前稿.txt",
+    "1000000000000000001_文案_当前稿.srt"
+  ]
+}

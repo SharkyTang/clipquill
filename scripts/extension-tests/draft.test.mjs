@@ -114,3 +114,15 @@ test('SRT uses the rounded millisecond media bound without accepting an endpoint
   const beyond={...source,reviewSegments:[{...source.reviewSegments[0],endMs:174243}]};
   assert.equal(exportDraft(createDraft(beyond,createReview(beyond))).srt,null);
 });
+
+test('JSON-valid malformed saved blocks fall back to the original current draft without mutation or losing safe SRT',()=>{
+  const original=fresh(), saved=JSON.parse(JSON.stringify(saveableDraft(editBlock(original,0,'应保留在原记录中的旧编辑。'))));
+  for(const blocks of [null,[],[null],[saved.blocks[0],null],[7,'bad'],[{sourceIds:[0],text:null}], [{sourceIds:null,text:'坏映射'}]]) {
+    const record={...saved,blocks}; const before=JSON.stringify(record);
+    const restored=createDraft(job,createReview(job),record);
+    assert.equal(draftText(restored),job.text);
+    assert.match(restored.restoreWarning,/未加载|不匹配/);
+    assert.equal(exportDraft(restored).srt,exportDraft(original).srt);
+    assert.equal(JSON.stringify(record),before,'rejected storage data must remain untouched for recovery');
+  }
+});

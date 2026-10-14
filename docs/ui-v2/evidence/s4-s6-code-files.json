@@ -1,0 +1,46 @@
+{
+  "snapshot": "/Users/shaoqitang/Documents/ChatGPT/逆向轻抖codex/work/ui-v2-round2-baseline-20261015",
+  "scope": "second round only; preserves prior S0-S3 changes",
+  "files": [
+    {
+      "path": "outputs/douyin-independent-extension/tool.html",
+      "beforeSha256": "399fe270a266be4a93a1d20adaf8b704c8e6722b0756ad9877e4616340207a92",
+      "afterSha256": "5d195c91603a5744260afc02b96f940c941e1894c26dfa26aae6aa52ed592337"
+    },
+    {
+      "path": "outputs/douyin-independent-extension/tool.css",
+      "beforeSha256": "e15eff9de8b6acbd37c7ba7a68b8c5c8286e1aa2fc4d65af08c994dc530b3617",
+      "afterSha256": "7c9d43b635a0fce4e400080917f7a1bd6c17a5437708c56c69d876399e1ba72a"
+    },
+    {
+      "path": "outputs/douyin-independent-extension/tool.js",
+      "beforeSha256": "9d72558e9144792a2de308ceabf29e7c7ecd34cb5a0242a89a32c6243a6999d6",
+      "afterSha256": "f7a171f22b8076d2b44dee49748296b22f1dd3440ecff13f67ad0a1e874e28c1"
+    },
+    {
+      "path": "outputs/douyin-independent-extension/draft.mjs",
+      "beforeSha256": "cecfc7f32ffe18f2f4d83ccc8ffe290f47f7fbe08c106badca9ef4602d109231",
+      "afterSha256": "72a2ae2b083c3174f6ddaafeaefdef7dd1ef1a0ff77202526568aa3de1e363ca"
+    },
+    {
+      "path": "scripts/extension-tests/tool-page.test.mjs",
+      "beforeSha256": "83d871a09b4a07e2de16f2fc601dfe2e775436a000ed2b5477ee5e97dcee9444",
+      "afterSha256": "82e6205356d3b36297bf80f1b568e91fbc19ba937796b59dd6085e26f47d4128"
+    },
+    {
+      "path": "scripts/extension-tests/task-contract.test.mjs",
+      "beforeSha256": "b1c4ff61874ed62ec2929fbb8045b19ba5e93fab594ab5d4af40ea3855ce7e13",
+      "afterSha256": "ffec8d2c989fa13e767fa7d6642bb5f9f687d230c2c1ca9f63de9e36897348eb"
+    },
+    {
+      "path": "scripts/extension-tests/editor.test.mjs",
+      "beforeSha256": "bc8eae6dfb418ee90048e54be0451915acaa2d009d9e59c3a4305b9ce94e6350",
+      "afterSha256": "355826c41066786bbe7e2059cba2b8d22ac434da0733df3aea249b56d2c3017a"
+    },
+    {
+      "path": "scripts/extension-tests/draft.test.mjs",
+      "beforeSha256": "d4062774ec783f56258264a740de3d829cae5c55ac1a2a3a4e20194aca7496a9",
+      "afterSha256": "5ff6cadfbbe5de10a2a8e83ce95b22d4d2e3336a6b46200b9011ab5af1f6d865"
+    }
+  ]
+}

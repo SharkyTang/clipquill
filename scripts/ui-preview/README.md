@@ -9,6 +9,8 @@
 | `http://127.0.0.1:4176/tool.html?state=complete` | 原有完成文案布局，不提供模拟来源和服务 |
 | `http://127.0.0.1:4176/tool.html?state=empty` | 原有空态 |
 | `http://127.0.0.1:4176/tool.html?state=complete&scenario=success` | 模拟元数据、已下载文件复用、两个真实格式的阶段、第三次查询返回不同 ID 的测试结果 |
+| `http://127.0.0.1:4176/tool.html?state=complete&scenario=running` | 保持模拟运行阶段，供阶段展开与主题检查；不是实际识别任务 |
+| `http://127.0.0.1:4176/tool.html?state=complete&scenario=failed` | 第二次查询返回模拟失败和真实格式错误；不是实际模型失败 |
 | `http://127.0.0.1:4176/tool.html?state=complete&scenario=poll-error` | 第一次 GET 连接失败，显示“重新查询原任务”；重试 GET 返回同一新任务结果，不重新 POST |
 | `http://127.0.0.1:4176/tool.html?state=complete&scenario=submit-unknown` | POST 响应丢失，提交状态未知，核对 UI 没有自动重复提交 |
 | `http://127.0.0.1:4176/tool.html?state=complete&scenario=storage-error` | 仅模拟 `draft-v1-*` 的写入失败，当前内容、复制和 TXT 保留；其他设置仍可保存 |

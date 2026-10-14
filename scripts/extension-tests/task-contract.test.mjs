@@ -9,6 +9,8 @@ import * as review from '../../outputs/douyin-independent-extension/review.mjs';
 import * as draft from '../../outputs/douyin-independent-extension/draft.mjs';
 import * as settings from '../../outputs/douyin-independent-extension/settings.mjs';
 import * as service from '../../outputs/douyin-independent-extension/service.mjs';
+import * as metadata from '../../outputs/douyin-independent-extension/metadata.mjs';
+import * as progress from '../../outputs/douyin-independent-extension/progress.mjs';
 
 // These tests run the production entry module with controlled Chrome and service
 // boundaries. No CDN access, download, user storage or model job is started.
@@ -41,20 +43,26 @@ function cache(text = '人工修改仍需保留。\n原始第二句。') {
 function render(overrides = {}, fixture = {}) {
   const saved = fixture.saved || new Map(), elements = new Map();
   const messages = [], downloads = [], requests = [], audio = [], exports = [], copied = [];
-  const objectURLs = new Map(), failWrites = new Set(fixture.failWrites || []), windowHandlers = new Map();
+  const objectURLs = new Map(), failWrites = new Set(fixture.failWrites || []), windowHandlers = new Map(), images = [];
   const document = {activeElement:null,getElementById:id=>elements.get(id),querySelectorAll:()=>[],
-    createElement:tag=>tag==='a'?{click(){exports.push({name:this.download,blob:objectURLs.get(this.href)});}}:{}};
+    createElement(tag) {
+      if (tag==='a') return {click(){exports.push({name:this.download,blob:objectURLs.get(this.href)});}};
+      const node = {dataset:{},children:[],textContent:'',append(...children){this.children.push(...children);},
+        setAttribute(name,value){this[name]=value;},removeAttribute(name){delete this[name];}};
+      if (tag==='img') images.push(node);
+      return node;
+    }};
   for (const match of html.matchAll(/\bid="([^"]+)"[^>]*>/g)) {
     const handlers = new Map();
     elements.set(match[1], {hidden:/\bhidden\b/.test(match[0]),disabled:false,checked:false,open:false,
-      value:'',textContent:'',dataset:{},options:[],handlers,selectionStart:0,selectionEnd:0,
+      value:'',textContent:'',dataset:{},options:[],children:[],handlers,selectionStart:0,selectionEnd:0,
       classList:{add(){},remove(){},toggle(){}},
       addEventListener(name,listener){handlers.set(name,[...handlers.get(name)||[],listener]);},
       removeEventListener(name,listener){handlers.set(name,(handlers.get(name)||[]).filter(value=>value!==listener));},
       async emit(name,event={}){for(const listener of handlers.get(name)||[])await listener(event);},
       async click(){if(!this.disabled)return this.emit('click');},
-      replaceChildren(...children){this.options=children;this.value=children[0]?.value||'';},
-      append(child){this.options.push(child);if(this.options.length===1)this.value=child.value;},
+      replaceChildren(...children){this.options=children;this.children=children;this.value=children[0]?.value||'';},
+      append(...children){this.options.push(...children);this.children=this.options;if(this.options.length===1)this.value=children[0]?.value;},
       focus(){document.activeElement=this;},select(){this.selectionStart=0;this.selectionEnd=this.value.length;},
       setAttribute(name,value){this[name]=value;},removeAttribute(name){delete this[name];},
       scrollIntoView(){},pause(){},load(){},async play(){}
@@ -75,7 +83,7 @@ function render(overrides = {}, fixture = {}) {
     if(delay===2000){queueMicrotask(()=>callback(...args));return 0;}
     const id=setTimeout(callback,delay,...args);id.unref?.();return id;
   };
-  const context = vm.createContext({...core,...transcription,...video,...review,...draft,...settings,...service,...editor,
+  const context = vm.createContext({...core,...transcription,...video,...review,...draft,...settings,...service,...editor,...metadata,...progress,
     ensureLocalService:async()=>ready,
     async localRequest(path,...args){requests.push(path);return overrides.localRequest?overrides.localRequest(path,...args):complete;},
     async localAudio(id){audio.push(id);return overrides.localAudio?overrides.localAudio(id):new Blob(['test audio']);},
@@ -90,8 +98,12 @@ function render(overrides = {}, fixture = {}) {
   context.window=context;
   vm.runInContext(source,context,{filename:'production-tool.js'});
   elements.get('link').value=workURL;
-  return {elements,saved,failWrites,messages,downloads,requests,audio,exports,copied,objectURLs,context,
+  return {elements,saved,failWrites,messages,downloads,requests,audio,exports,copied,objectURLs,context,images,
     dispatchWindow(name,event={}){return windowHandlers.get(name)?.(event);}};
+}
+function phases(fixture) {
+  return fixture.elements.get('phaseList').children.map(row => ({state:row.dataset.state,
+    label:row.children[1].textContent,detail:row.children[1].children[0].textContent,time:row.children[2].textContent}));
 }
 
 test('rapid transcription clicks hold one service/parse/submit operation and lock captured task parameters', async () => {
@@ -124,15 +136,63 @@ test('polling refuses another job id even when it belongs to the same work', asy
 });
 
 test('a polling disconnect keeps the submitted task unknown and retries its GET without creating a duplicate job', async () => {
-  let starts=0,polls=0;
-  const f=render({async startVideoTranscription(){starts++;return job;},async localRequest(){if(++polls===1)throw Object.assign(new Error('本地服务连接中断'),{code:'SERVICE_UNAVAILABLE'});return complete;}});
+  let posts=0,polls=0;
+  const f=render({async localRequest(path){
+    if(path==='/videos/find')return{file:{path:'/isolated-test/a.mp4',height:720,expectedBytes:123,workId,durationMs:5000}};
+    if(path==='/jobs'){posts++;return job;}
+    if(path==='/jobs/'+job.id){
+      if(++polls===1)throw Object.assign(new Error('本地服务连接中断'),{code:'SERVICE_UNAVAILABLE'});
+      return complete;
+    }
+    throw new Error('unexpected request '+path);
+  }});
   await f.elements.get('transcribe').click();
   assert.match(f.elements.get('status').textContent,/待确认|未确认|连接.*异常/);
   assert.equal(f.elements.get('retry').hidden,false);
+  assert.equal(f.elements.get('taskProgress').dataset.state,'unknown');
+  assert.equal(f.elements.get('taskProgress').open,true);
+  assert.match(f.elements.get('progressSummary').textContent,/连接中断|待确认/);
+  const disconnectedRows=phases(f);
+  assert.ok(disconnectedRows.some(item=>item.label==='准备音频'&&item.state==='unknown'&&item.time===''));
+  assert.equal(disconnectedRows.some(item=>item.label==='文案结果已返回'),false);
+  const confirmed=disconnectedRows.filter(item=>item.state==='completed'||item.state==='skipped');
+  assert.ok(confirmed.some(item=>item.label==='获取视频信息'));
+  assert.ok(confirmed.some(item=>item.label==='本地视频'&&/已复用/.test(item.detail)&&item.time===''));
   await f.elements.get('retry').click();
-  assert.equal(starts,1,'retrying observation must not POST /jobs again');
-  assert.deepEqual(f.requests,['/jobs/'+job.id,'/jobs/'+job.id]);
+  assert.equal(posts,1,'retrying observation must not POST /jobs again');
+  assert.deepEqual(f.requests,['/videos/find','/jobs','/jobs/'+job.id,'/jobs/'+job.id]);
+  assert.deepEqual(f.downloads,[]);
   assert.equal(f.elements.get('status').dataset.state,'complete');
+  assert.equal(f.elements.get('taskProgress').dataset.state,'succeeded');
+  const recoveredRows=phases(f);
+  assert.ok(recoveredRows.some(item=>item.label==='文案结果已返回'&&item.state==='completed'));
+  for(const row of confirmed)assert.deepEqual(recoveredRows.find(item=>item.label===row.label),row,'confirmed earlier phases must survive same-task retry');
+  const recoveredAudio=recoveredRows.find(item=>item.label==='准备音频');
+  assert.equal(recoveredAudio.state,'completed');assert.equal(recoveredAudio.time,'');assert.match(recoveredAudio.detail,/未记录/);
+  assert.match(f.elements.get('timingNote').textContent,/耗时未知/,'a disconnect without server end time cannot acquire a whole-task duration');
+});
+
+test('a real coarse failed response preserves confirmed steps and exposes the exact backend error without guessing its phase', async () => {
+  let polls=0;
+  const f=render({async localRequest(path){
+    if(path==='/videos/find')return{file:{path:'/isolated-test/a.mp4',height:720,expectedBytes:123,workId,durationMs:5000}};
+    if(path==='/jobs')return job;
+    if(path==='/jobs/'+job.id)return ++polls===1?{...job,stage:'中文模型识别与逐句时间对齐'}:
+      {...job,status:'failed',stage:'失败',error:'本地处理超时，请尝试较短的视频。'};
+    throw new Error('unexpected request '+path);
+  }});
+  await f.elements.get('transcribe').click();
+  const rows=phases(f);
+  assert.equal(f.elements.get('taskProgress').dataset.state,'failed');assert.equal(f.elements.get('taskProgress').open,true);
+  assert.ok(rows.some(item=>item.label==='获取视频信息'&&item.state==='completed'));
+  assert.ok(rows.some(item=>item.label==='本地视频'&&item.state==='skipped'&&/已复用/.test(item.detail)&&item.time===''));
+  assert.ok(rows.some(item=>item.label==='中文模型识别与逐句时间对齐'&&item.state==='unknown'));
+  const failed=rows.find(item=>item.state==='failed');assert.ok(failed);
+  assert.match(failed.detail,/未报告具体失败步骤/);assert.match(failed.detail,/本地处理超时/);
+  assert.equal(rows.some(item=>item.label==='文案结果已返回'),false);
+  assert.equal(f.elements.get('transcriptSection').hidden,true);
+  assert.deepEqual(f.requests,['/videos/find','/jobs','/jobs/'+job.id,'/jobs/'+job.id]);
+  assert.deepEqual(f.downloads,[],'a recognition failure must preserve reuse rather than download again');
 });
 
 test('a lost POST response reports uncertain submission without exposing a blind duplicate retry', async () => {
@@ -220,12 +280,51 @@ test('repeatedly opening review while audio loads shares one request and a close
   const sound=deferred();
   const f=render({async localAudio(){return sound.promise;}},{saved:cache()});
   const details=f.elements.get('reviewDetails');
+  assert.equal(f.elements.get('reviewAudio').hidden,true,'a restored transcript must not expose an empty audio player');
   details.open=true;const opening=details.emit('toggle');await until(()=>f.audio.length===1);
+  assert.equal(f.elements.get('reviewAudio').hidden,true,'the native player stays hidden while its audio blob is pending');
   details.open=false;await details.emit('toggle');details.open=true;const reopening=details.emit('toggle');
   await settle();assert.equal(f.audio.length,1,'same-job audio must not duplicate inflight requests');
+  assert.equal(f.elements.get('reviewAudio').hidden,true);
   details.open=false;await details.emit('toggle');sound.resolve(new Blob(['isolated audio']));await Promise.all([opening,reopening]);await settle();
   assert.equal(details.open,false);
   assert.equal(f.elements.get('playSegment').disabled,true,'late audio should not activate a collapsed review');
+  assert.equal(f.elements.get('reviewAudio').hidden,true,'a stale response for a collapsed review must not expose its player');
+  assert.equal(f.elements.get('reviewAudio').src,undefined);
+  details.open=true;await details.emit('toggle');await until(()=>Boolean(f.elements.get('reviewAudio').src));
+  const readySource=f.elements.get('reviewAudio').src;
+  assert.equal(f.elements.get('reviewAudio').hidden,false);assert.equal(f.elements.get('playSegment').disabled,false);
+  assert.equal(await f.objectURLs.get(readySource).text(),'isolated audio');
+  const requestsBeforeCachedOpen=f.audio.length;
+  details.open=false;await details.emit('toggle');details.open=true;await details.emit('toggle');
+  assert.equal(f.elements.get('reviewAudio').hidden,false);assert.equal(f.elements.get('reviewAudio').src,readySource);
+  assert.equal(f.audio.length,requestsBeforeCachedOpen,'opening cached audio should reuse the validated blob');
+});
+
+test('audio failure preserves the draft and hides the empty player until a successful retry returns a blob', async () => {
+  const sound=deferred();let loads=0;
+  const f=render({async localAudio(){return ++loads===1?sound.promise:new Blob(['retry audio']);}},{saved:cache()});
+  const current=f.elements.get('transcriptText').value,details=f.elements.get('reviewDetails');
+  details.open=true;await details.emit('toggle');await until(()=>f.audio.length===1);
+  assert.equal(f.elements.get('reviewAudio').hidden,true);assert.equal(f.elements.get('playSegment').disabled,true);
+  sound.reject(new Error('测试音频加载失败'));
+  await until(()=>f.elements.get('audioState').textContent==='测试音频加载失败');
+  assert.equal(f.elements.get('reviewAudio').hidden,true);assert.equal(f.elements.get('reviewAudio').src,undefined);
+  assert.equal(f.elements.get('playSegment').disabled,true);assert.equal(f.elements.get('transcriptText').value,current);
+  details.open=false;await details.emit('toggle');details.open=true;await details.emit('toggle');
+  await until(()=>Boolean(f.elements.get('reviewAudio').src));
+  assert.equal(f.audio.length,2);assert.equal(f.elements.get('reviewAudio').hidden,false);
+  assert.equal(await f.objectURLs.get(f.elements.get('reviewAudio').src).text(),'retry audio');
+  assert.equal(f.elements.get('transcriptText').value,current);
+});
+
+test('a task without review audio never exposes a broken player or starts an audio request', async () => {
+  const saved=cache();saved.set('result-v1-'+complete.id,JSON.stringify({...complete,hasAudio:false}));
+  const f=render({}, {saved}),details=f.elements.get('reviewDetails');
+  details.open=true;await details.emit('toggle');await settle();
+  assert.equal(f.elements.get('reviewAudio').hidden,true);assert.equal(f.elements.get('reviewAudio').src,undefined);
+  assert.equal(f.elements.get('playSegment').disabled,true);assert.match(f.elements.get('audioState').textContent,/没有可用的回听音频/);
+  assert.deepEqual(f.audio,[]);assert.equal(f.elements.get('transcriptText').value,'人工修改仍需保留。\n原始第二句。');
 });
 
 test('page disposal ignores late job completion and prevents any new operation', async () => {
@@ -274,12 +373,16 @@ test('late audio from an older job cannot replace or revoke the newer job audio'
     async localAudio(id){return id===complete.id?oldAudio.promise:new Blob(['new job audio']);}},{saved:cache()});
   const details=f.elements.get('reviewDetails');details.open=true;const oldLoading=details.emit('toggle');
   await until(()=>f.audio.length===1);
+  assert.equal(f.elements.get('reviewAudio').hidden,true);
   await f.elements.get('transcribe').click();await f.elements.get('applyResult').click();
+  assert.equal(f.elements.get('reviewAudio').hidden,true,'changing drafts must remove the previous empty or ready player');
   details.open=true;await details.emit('toggle');await until(()=>f.audio.length===2);
   await settle();const newSource=f.elements.get('reviewAudio').src;
   assert.ok(newSource);assert.equal(await f.objectURLs.get(newSource).text(),'new job audio');
+  assert.equal(f.elements.get('reviewAudio').hidden,false);
   oldAudio.resolve(new Blob(['late old job audio']));await oldLoading;await settle();
   assert.equal(f.elements.get('reviewAudio').src,newSource);
+  assert.equal(f.elements.get('reviewAudio').hidden,false,'an older response cannot hide the newer ready player');
   assert.equal(await f.objectURLs.get(newSource).text(),'new job audio');
 });
 
@@ -306,11 +409,66 @@ test('a source revision during delayed completion stages the result and keeps th
   const operation=f.elements.get('transcribe').click();await until(()=>f.requests.length===1);
   f.elements.get('link').value='https://www.douyin.com/video/1111111111111111111';
   await f.elements.get('link').emit('input');
+  const progressBefore=f.elements.get('progressSummary').textContent,statusBefore=f.elements.get('status').textContent;
   finish.resolve(complete);await operation;
   assert.equal(f.elements.get('transcriptSection').hidden,true);
   assert.equal(f.elements.get('result').hidden,true,'late metadata should not relabel the newer selected source');
   assert.equal(f.elements.get('pendingResultNotice').hidden,false);
   assert.equal(f.elements.get('link').value,'https://www.douyin.com/video/1111111111111111111');
+  assert.equal(f.elements.get('taskProgress').hidden,true,'A completion must not reopen progress for B');
+  assert.equal(f.elements.get('progressSummary').textContent,progressBefore,'A completion must not relabel the progress summary');
+  assert.equal(f.elements.get('status').textContent,statusBefore,'A completion must not overwrite the generic status for B');
+});
+
+test('a late running phase from A cannot update the timeline or status after the source changes to B', async () => {
+  const delayedStage=deferred(),finish=deferred();let polls=0;
+  const f=render({async startVideoTranscription(){return job;},async localRequest(){return ++polls===1?delayedStage.promise:finish.promise;}});
+  const operation=f.elements.get('transcribe').click();await until(()=>polls===1);
+  assert.equal(f.elements.get('taskProgress').hidden,false);
+  f.elements.get('link').value='https://www.douyin.com/video/1111111111111111111';await f.elements.get('link').emit('input');
+  const rowsBefore=phases(f),statusBefore=f.elements.get('status').textContent;
+  delayedStage.resolve({...job,stage:'中文模型识别与逐句时间对齐'});await until(()=>polls===2);
+  assert.equal(f.elements.get('taskProgress').hidden,true);assert.deepEqual(phases(f),rowsBefore);
+  assert.equal(f.elements.get('status').textContent,statusBefore,'late A running status must not describe B');
+  assert.equal(f.elements.get('result').hidden,true);assert.equal(f.elements.get('coverImage').hidden,true);
+  assert.equal(f.elements.get('transcriptSection').hidden,true);
+  finish.resolve(complete);await operation;
+  assert.equal(f.elements.get('taskProgress').hidden,true);assert.deepEqual(phases(f),rowsBefore);
+  assert.equal(f.elements.get('status').textContent,statusBefore,'A completion must not overwrite the generic status for B');
+  assert.equal(f.elements.get('transcriptSection').hidden,true,'A completion must remain pending instead of overwriting B');
+});
+
+test('a delayed same-job restore of cached A cannot relabel B status or disturb the current draft', async () => {
+  const finish=deferred();
+  const f=render({async localRequest(){return finish.promise;}},{saved:cache()});
+  const current=f.elements.get('transcriptText').value;
+  const operation=f.elements.get('resume').click();await until(()=>f.requests.length===1);
+  f.elements.get('link').value='https://www.douyin.com/video/1111111111111111111';await f.elements.get('link').emit('input');
+  const statusBefore=f.elements.get('status').textContent;
+  finish.resolve(complete);await operation;
+  assert.equal(f.elements.get('status').textContent,statusBefore,'the same-job early return must also respect the current source revision');
+  assert.equal(f.elements.get('taskProgress').hidden,true);
+  assert.equal(f.elements.get('transcriptText').value,current);
+  assert.deepEqual(f.requests,['/jobs/'+job.id]);
+});
+
+test('a delayed restore connection callback for A cannot overwrite status after switching the source to B', async () => {
+  const connection=deferred();let onState;
+  const f=render({ensureLocalService(options){onState=options.onState;return connection.promise;}},{saved:cache()});
+  const current=f.elements.get('transcriptText').value;
+  const operation=f.elements.get('resume').click();await until(()=>typeof onState==='function');
+  onState('正在连接作品 A 的本地助手');
+  assert.equal(f.elements.get('status').textContent,'正在连接作品 A 的本地助手','the callback should work while A is current');
+  f.elements.get('link').value='https://www.douyin.com/video/1111111111111111111';await f.elements.get('link').emit('input');
+  const statusBefore=f.elements.get('status').textContent;
+  onState('作品 A 的迟到连接消息');
+  assert.equal(f.elements.get('status').textContent,statusBefore);
+  assert.equal(f.elements.get('taskProgress').hidden,true);
+  connection.resolve(ready);await operation;
+  assert.equal(f.elements.get('status').textContent,statusBefore);
+  assert.equal(f.elements.get('transcriptText').value,current);
+  assert.deepEqual(f.requests,['/jobs/'+job.id]);
+  assert.deepEqual(f.messages,[]);assert.deepEqual(f.downloads,[]);
 });
 
 test('a failed submitted-task reference stays recoverable in this page without claiming it survived reopening', async () => {

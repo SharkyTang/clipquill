@@ -6,6 +6,8 @@ import {createDraft, saveableDraft, draftText, draftSegments, exportDraft} from 
 import {migrateTerms, activeTerms} from './settings.mjs';
 import {ensureLocalService} from './service.mjs';
 import {createDraftEditor} from './editor.mjs';
+import {deriveVideoInfo} from './metadata.mjs';
+import {createTaskProgress} from './progress.mjs';
 const el = id => document.getElementById(id);
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 const downloads = new Map();
@@ -18,6 +20,81 @@ let disposed = false, draftSaveFailed = false, pendingResult = null, unknownSubm
 let resultCacheReady = false, completedRefReady = false, volatileTaskRef = null;
 let flushComposition = null;
 let legacyTerms = "";
+const taskProgress = createTaskProgress();
+let progressContext = null, progressOpenChoice = null, progressState = 'idle', progressAutoOpen = null;
+let imageRevision = 0, cardWorkId = null, coverURL = null, avatarURL = null;
+const seconds = ms => ms < 100 ? '<0.1 秒' : `${(ms / 1000).toFixed(1)} 秒`;
+function renderProgress(context = progressContext) {
+  if (!currentSource(context) || context !== progressContext) return;
+  const view = taskProgress.view();
+  const panel = el('taskProgress');
+  panel.hidden = view.state === 'idle';
+  panel.dataset.state = ['unknown','disconnected'].includes(view.state) ? 'unknown' : view.state;
+  const labels = {working:'处理中',succeeded:view.taskKind === 'download' ? '视频已保存' : '文案已返回',failed:'未完成',unknown:'状态待确认',disconnected:'连接中断 · 待确认'};
+  el('progressSummary').textContent = [labels[view.state],view.totalElapsedMs === undefined ? '' : `${view.totalTimingSource === 'server' ? '服务' : '本页'} ${seconds(view.totalElapsedMs)}`].filter(Boolean).join(' · ');
+  const marks = {pending:'',running:'',completed:'✓',skipped:'–',failed:'!',unknown:'?'};
+  const states = {pending:'等待',running:'进行中',completed:'已完成',skipped:'已跳过',failed:'失败',unknown:'待确认'};
+  el('phaseList').replaceChildren(...view.phases.map(phase => {
+    const row = document.createElement('li'); row.className = 'phase-row'; row.dataset.state = phase.state;
+    const marker = document.createElement('span'); marker.className = 'phase-marker'; marker.textContent = marks[phase.state];
+    marker.setAttribute?.('aria-hidden','true');
+    const content = document.createElement('span'); content.className = 'phase-label'; content.textContent = phase.label;
+    const detail = document.createElement('span'); detail.className = 'phase-detail';
+    detail.textContent = [phase.reused ? '' : states[phase.state],phase.detail,phase.timingNote].filter(Boolean).join(' · ');
+    content.append(detail);
+    const time = document.createElement('span'); time.className = 'phase-time';
+    time.textContent = phase.elapsedMs === undefined ? '' : seconds(phase.elapsedMs);
+    row.append(marker,content,time); return row;
+  }));
+  el('timingNote').textContent = [view.totalElapsedMs === undefined ? view.timingNote : `${view.totalTimingLabel} ${seconds(view.totalElapsedMs)}`,
+    view.phases.some(phase => phase.timingLabel === '本页观测') ? '阶段秒数为本页观测，含查询间隔；不等同引擎耗时。' : '未记录的阶段不补计时。'].filter(Boolean).join(' ');
+  if (view.state !== progressState) {
+    const open = ['failed','unknown','disconnected'].includes(view.state) ? true : progressOpenChoice ?? view.state === 'working';
+    if (panel.open !== open) { progressAutoOpen = open; panel.open = open; }
+    progressState = view.state;
+  }
+}
+function beginProgress(kind, context, restored = false, ref = {}) {
+  progressContext = context; progressOpenChoice = null; progressState = 'idle';
+  taskProgress.begin(kind,{restored,sourceVideoId:ref.workId,taskId:ref.id}); renderProgress(context);
+}
+function progressEvent(context, action, ...args) {
+  if (!currentSource(context) || context !== progressContext) return;
+  taskProgress[action](...args); renderProgress(context);
+}
+el('taskProgress').addEventListener('toggle',event => {
+  if (progressAutoOpen === el('taskProgress').open) { progressAutoOpen = null; return; }
+  if (event.isTrusted) progressOpenChoice = el('taskProgress').open;
+});
+function resetVideo() {
+  imageRevision += 1; cardWorkId = null; coverURL = null; avatarURL = null;
+  for (const id of ['coverImage','authorAvatar']) { el(id).hidden = true; el(id).removeAttribute('src'); }
+  el('result').hidden = true; el('videoEmpty').hidden = false; el('videoPlatform').textContent = '等待来源';
+  el('downloadState').textContent = '';
+}
+function cardImage(id, url, context, revision) {
+  const display = el(id); display.hidden = true; display.onerror = null; display.removeAttribute('src');
+  const cover = id === 'coverImage';
+  if (cover) { el('videoCover').dataset.state = url ? 'loading' : 'empty'; el('coverState').hidden = false; el('coverState').textContent = url ? '正在加载封面…' : '暂无可用封面'; }
+  if (!url) return;
+  // A separate request object makes old image events incapable of showing a
+  // previous work after the visible card changes.
+  const image = document.createElement('img'); image.referrerPolicy = 'no-referrer';
+  const current = () => !disposed && revision === imageRevision && (!context || context.sourceRevision === sourceRevision);
+  const failed = () => {
+    if (!current()) return;
+    display.hidden = true;
+    if (cover) { el('videoCover').dataset.state = 'error'; el('coverState').hidden = false; el('coverState').textContent = '封面暂不可用'; }
+  };
+  image.onload = () => {
+    if (!current()) return;
+    display.onerror = failed;
+    display.src = url; display.hidden = false;
+    if (cover) { display.alt = '当前作品封面'; el('videoCover').dataset.state = 'ready'; el('coverState').hidden = true; }
+  };
+  image.onerror = failed;
+  image.src = url;
+}
 function readSaved(key) { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } }
 function readDraftRecord(key) {
   let raw = null;
@@ -27,6 +104,14 @@ function readDraftRecord(key) {
 function persist(key,value) {
   try { localStorage.setItem(key,JSON.stringify(value)); return true; }
   catch { el("copyState").textContent = "当前稿自动保存失败，请先复制或导出，避免刷新丢失。"; return false; }
+}
+function saveStatus(text, state = 'saved') {
+  el('saveState').textContent = text; el('saveState').dataset.state = state;
+  el('retrySave').hidden = state !== 'error';
+}
+function restoreSaveStatus() {
+  if (unmappedText !== null) saveStatus('修改尚未保存','warning');
+  else if (draft) saveStatus(draftSaveFailed ? '保存失败 · 请导出' : '已保存在本机',draftSaveFailed ? 'error' : 'saved');
 }
 function status(text, state = 'waiting', announce = true) {
   if (disposed) return;
@@ -114,24 +199,41 @@ async function checkDownload(id) {
 }
 const onDownloadChanged = delta => { if (downloads.has(delta.id)) checkDownload(delta.id); };
 chrome.downloads.onChanged.addListener(onDownloadChanged);
-function showVideo(work, candidate, context) {
+function showVideo(work, candidate, context, verifiedBytes) {
   if (!currentSource(context)) return;
+  const info = deriveVideoInfo(work,candidate,{verifiedBytes});
   el('videoEmpty').hidden = true;
-  el('result').hidden = false; el('title').textContent = work.title;
-  el('facts').textContent = `${work.id} · ${(work.durationMs / 1000).toFixed(1)} 秒 · ${candidate.width} × ${candidate.height} · ${(candidate.size / 1024 ** 2).toFixed(1)} MiB`;
+  el('result').hidden = false; el('title').textContent = info.title; el('title').title = info.title;
+  el('videoPlatform').textContent = info.platform || '未知来源';
+  el('durationValue').textContent = info.durationLabel;
+  el('resolutionValue').textContent = info.resolutionLabel;
+  el('sizeValue').textContent = info.sizeLabel;
+  el('sizeSource').textContent = `时长与分辨率：页面元数据 · 大小：${info.sizeSource || '未知'}`;
+  el('videoDuration').textContent = info.durationLabel; el('videoDuration').hidden = !info.durationMs;
+  el('videoAuthor').hidden = !info.authorName; el('authorName').textContent = info.authorName || '';
+  if (cardWorkId !== info.id || coverURL !== info.coverURL || avatarURL !== info.avatarURL) {
+    const revision = ++imageRevision; cardWorkId = info.id; coverURL = info.coverURL; avatarURL = info.avatarURL;
+    cardImage('coverImage',info.coverURL,context,revision);
+    cardImage('authorAvatar',info.authorName ? info.avatarURL : null,context,revision);
+  }
+  el('facts').textContent = `作品 ID：${info.id || '未知'}。媒体预览尚无已验证的播放路径。`;
 }
 async function saveVideo(work, quality = el('quality').value, context = null) {
   assertOperation(context);
   const candidate = selectMP4(work, work.id, Number(quality));
   showVideo(work, candidate, context);
-  el('downloadState').textContent = `网页下载入口：${work.webpageDownloadEnabled === true ? '开启' : work.webpageDownloadEnabled === false ? '关闭' : '未知'}。播放文件的访问结果以实际下载为准。`;
+  if (currentSource(context)) el('downloadState').textContent = `网页下载入口：${work.webpageDownloadEnabled === true ? '开启' : work.webpageDownloadEnabled === false ? '关闭' : '未知'}。播放文件的访问结果以实际下载为准。`;
+  progressEvent(context,'enter','download','下载视频','等待 Chrome 确认文件保存及大小');
   const id = await chrome.downloads.download({url: candidate.url, filename: filenameFor(work, candidate), conflictAction: 'uniquify', saveAs: false});
   assertOperation(context);
-  status('正在保存视频，完成后会自动继续。');
+  if (currentSource(context)) status('正在保存视频，完成后会自动继续。');
   const path = await new Promise((resolve, reject) => {
     const timer = setTimeout(() => {downloads.delete(id); reject(new Error('等待下载超时，请查看 Chrome 下载列表后重试。'));}, 15 * 60 * 1000);
     downloads.set(id, {size: candidate.size, resolve, reject, timer}); checkDownload(id);
   });
+  assertOperation(context);
+  progressEvent(context,'complete','download','文件已保存，实际字节数与页面标称匹配');
+  showVideo(work,candidate,context,candidate.size);
   return {path, expectedBytes: candidate.size, workId: work.id, title: work.title, durationMs: work.durationMs};
 }
 function showTranscript(job, offline = false) {
@@ -150,6 +252,8 @@ function showTranscript(job, offline = false) {
   }
   review = draft.sources.length ? draftSegments(draft) : null; segmentIndex = 0;
   el('transcriptSection').hidden = false;
+  el('skipEditor').hidden = false;
+  el('jumpEditor').hidden = false;
   el('emptyTranscript').hidden = true;
   el('recentState').textContent = '最近文案：' + (job.title || '上次提取的作品');
   el('reviewDetails').open = false;
@@ -161,13 +265,14 @@ function showTranscript(job, offline = false) {
   resultCacheReady = persist('result-v1-' + job.id,job);
   completedRefReady = resultCacheReady && persist('lastCompleted-v1',{id:job.id,workId:job.workId});
   draftSaveFailed = !(resultCacheReady && completedRefReady);
-  el('saveState').textContent = draftSaveFailed ? '保存失败 · 请导出' : '已保存在本机';
+  restoreSaveStatus();
   updatePreview();
   status(offline ? '已恢复本机当前稿，可编辑、复制和导出。回听时会自动连接本地助手。' : '文案已完成，可直接编辑、复制或导出。','complete');
   audioSequence += 1; audioLoading = null;
   if (audioURL) URL.revokeObjectURL(audioURL);
   audioURL = null; cachedAudioJob = null;
   el('reviewAudio').pause(); el('reviewAudio').removeAttribute('src'); el('reviewAudio').load(); stopAt = null;
+  el('reviewAudio').hidden = true;
   el('playSegment').disabled = true;
   el('audioState').textContent = job.hasAudio ? '展开后自动连接本地助手并加载原音。' : '此任务没有可用的回听音频；编辑与导出仍可使用。';
 }
@@ -175,7 +280,7 @@ function receiveTranscript(job, context) {
   assertOperation(context);
   // A same-job refresh must never reload over an in-memory edited draft.
   if (transcript?.id === job.id && draft) {
-    status('原任务已完成；保留当前编辑稿，可继续编辑和导出。','complete'); return;
+    if (currentSource(context)) status('原任务已完成；保留当前编辑稿，可继续编辑和导出。','complete'); return;
   }
   if (!currentSource(context) || (draft && (draft.edited || draftSaveFailed || unmappedText !== null || editor?.composing || editRevision !== context.editRevision))) {
     pendingResult = job;
@@ -183,7 +288,7 @@ function receiveTranscript(job, context) {
     el('pendingResultNotice').hidden = false;
     el('pendingResultText').textContent = '新文案已就绪：' + (job.title || job.workId) + '。当前编辑稿仍保留；载入前会再次保存当前稿。' + (cached ? '' : '新结果尚未缓存，请保持页面打开。');
     if (!cached) el('copyState').textContent = '新结果缓存失败，当前稿未被替换；请保持页面打开并及时导出。';
-    status('新文案已就绪，等待你确认载入；当前稿未被替换。','complete'); return;
+    if (currentSource(context)) status('新文案已就绪，等待你确认载入；当前稿未被替换。','complete'); return;
   }
   showTranscript(job);
 }
@@ -205,13 +310,14 @@ function updatePreview() {
   }
 }
 function saveDraft() {
-  el('saveState').textContent = '保存中…';
+  if (unmappedText !== null || editor?.composing) { restoreSaveStatus(); return false; }
+  saveStatus('保存中…','pending');
   const draftSaved = persist('draft-v1-' + transcript.id,saveableDraft(draft));
   if (!resultCacheReady) resultCacheReady = persist('result-v1-' + transcript.id,transcript);
   if (resultCacheReady && !completedRefReady) completedRefReady = persist('lastCompleted-v1',{id:transcript.id,workId:transcript.workId});
   const saved = draftSaved && resultCacheReady && completedRefReady;
   draftSaveFailed = !saved;
-  el('saveState').textContent = saved ? '已保存在本机' : '保存失败 · 请导出';
+  restoreSaveStatus();
   updatePreview();
   return saved;
 }
@@ -229,10 +335,11 @@ function renderSegment() {
 }
 async function loadAudio(job) {
   if (!el('reviewDetails').open || !review || !job.hasAudio) return;
-  if (cachedAudioJob === job.id && audioURL) { el('playSegment').disabled = false; return; }
+  if (cachedAudioJob === job.id && audioURL) { el('reviewAudio').hidden = false; el('playSegment').disabled = false; return; }
   const sequence = ++audioSequence;
   const current = () => !disposed && sequence === audioSequence && transcript?.id === job.id && el('reviewDetails').open;
   el('playSegment').disabled = true;
+  el('reviewAudio').hidden = true;
   el('audioState').textContent = '正在加载本地回听音频…';
   let loading = audioLoading;
   if (!loading || loading.jobId !== job.id) {
@@ -248,7 +355,7 @@ async function loadAudio(job) {
     const blob = await loading.promise;
     if (!current()) return;
     if (audioURL) URL.revokeObjectURL(audioURL);
-    audioURL = URL.createObjectURL(blob); cachedAudioJob = job.id; el('reviewAudio').src = audioURL;
+    audioURL = URL.createObjectURL(blob); cachedAudioJob = job.id; el('reviewAudio').src = audioURL; el('reviewAudio').hidden = false;
     el('playSegment').disabled = false;
     el('audioState').textContent = '原音已就绪，可用播放器调整音量和播放速度。';
   } catch (error) { if (current()) el('audioState').textContent = error.message; }
@@ -269,6 +376,7 @@ async function followJob(ref, context) {
       retryAction = () => resumeKnownJob(ref);
       throw error;
     }
+    progressEvent(context,'observeJob',job);
     if (job.status === 'complete') { receiveTranscript(job,context); return; }
     if (job.status === 'failed') {
       retryAction = lastOperation?.jobId === ref.id ? () => start(lastOperation.mode,lastOperation.existing,lastOperation) : null;
@@ -278,7 +386,7 @@ async function followJob(ref, context) {
     const now = Date.now() / 1000;
     const elapsed = Number.isFinite(job.startedAt) && job.startedAt > 0 && job.startedAt <= now
       ? `，已运行 ${Math.floor(now - job.startedAt)} 秒` : '';
-    status(`${stage}${elapsed}。请保持工具页打开。`,'waiting',stage !== previousStage);
+    if (currentSource(context)) status(`${stage}${elapsed}。请保持工具页打开。`,'waiting',stage !== previousStage);
     previousStage = stage;
     await pause(2000);
   }
@@ -297,43 +405,59 @@ async function start(mode, existing = false, operation = null) {
   const terms = activeTerms(el('enableTerms').checked,el('terms').value);
   const op = operation || {mode,existing,link:el('link').value,tabId:Number(el('tabs').value),quality:el('quality').value,terms};
   const context = operationContext();
+  resetVideo(); beginProgress(mode,context);
   lastOperation = op;
   retryAction = () => start(op.mode,op.existing,op);
   busy(true); el('retry').hidden = true; el('copyState').textContent = '';
   if (el('existingPages').open) { el('existingPages').open = false; el('existingPages').querySelector?.('summary')?.focus(); }
   pendingTabId = null; el('showPage').hidden = true;
   try {
+    progressEvent(context,'enter','source','确认视频来源');
     const url = op.existing ? null : sourceURL(op.link);
     if (op.existing && (!Number.isInteger(op.tabId) || op.tabId <= 0)) throw new Error('请先打开并选择目标抖音作品。');
+    progressEvent(context,'complete','source');
     el('taskSource').hidden = false;
     el('taskSource').textContent = op.existing ? '本次来源：所选抖音作品页面' : '本次来源：' + url;
     if (op.mode === 'transcribe') {
-      await connectLocalService({onState: text => { if (currentOperation(context)) status(text); }});
+      progressEvent(context,'enter','service','连接本地助手');
+      await connectLocalService({onState: text => { if (currentSource(context)) status(text); }});
       assertOperation(context); el('serviceHelp').hidden = true;
+      progressEvent(context,'complete','service');
     }
-    status('正在后台读取抖音作品，请保留此工具页。');
+    progressEvent(context,'enter','metadata','获取视频信息');
+    if (currentSource(context)) status('正在后台读取抖音作品，请保留此工具页。');
     const {work} = await parserRequest('resolve-douyin', {url, existingTabId: op.existing ? op.tabId : null, retry: Boolean(operation)});
     assertOperation(context);
     op.workId = work.id;
     const candidate = selectMP4(work,work.id,Number(op.quality));
+    progressEvent(context,'complete','metadata');
     showVideo(work,candidate,context);
-    el('taskSource').textContent = '本次作品：' + (work.title || '已选择的抖音作品');
+    if (currentSource(context)) el('taskSource').textContent = '本次作品：' + (work.title || '已选择的抖音作品');
     if (op.mode === 'transcribe' && work.durationMs > 3600000) throw new Error('本地文案原型支持一小时以内的视频。');
     if (op.mode === 'download') {
       await saveVideo(work,op.quality,context); assertOperation(context);
-      el('downloadState').textContent = '视频已保存到“下载 / 抖音独立导出”，文件大小已核对。';
-      return status('视频已下载完成。可在下载文件夹查看。','complete');
+      progressEvent(context,'finish');
+      if (currentSource(context)) {
+        el('downloadState').textContent = '视频已保存到“下载 / 抖音独立导出”，文件大小已核对。';
+        status('视频已下载完成。可在下载文件夹查看。','complete');
+      }
+      return;
     }
-    status('正在检查已下载的视频…');
+    if (currentSource(context)) status('正在检查已下载的视频…');
+    progressEvent(context,'enter','local-file','检查本地视频');
     let submittedResponse = false;
     const request = async (path,payload) => {
       assertOperation(context);
       try {
+        if (path === '/videos/find') progressEvent(context,'enter','local-file','检查本地视频');
+        if (path === '/jobs') progressEvent(context,'enter','submit','提交本地文案任务');
         const value = await localRequest(path,payload); assertOperation(context);
+        if (path === '/videos/find' && value?.file === null) progressEvent(context,'complete','local-file');
         if (path === '/jobs') submittedResponse = true;
         return value;
       }
       catch (error) {
+        if (path === '/jobs' && ['SOURCE_MISSING','SOURCE_INCOMPLETE'].includes(error.code)) progressEvent(context,'complete','submit','原文件发生变化，服务拒绝本次提交；重新检查');
         if (path === '/jobs' && (error.code === 'SERVICE_UNAVAILABLE' || ['SyntaxError','TypeError','AbortError'].includes(error.name))) {
           error.submissionUnknown = true;
           error.message = '任务提交响应未收到，后台是否已接收尚未确认。请先核对服务；不会自动重复提取。';
@@ -346,8 +470,10 @@ async function start(mode, existing = false, operation = null) {
       request,
       download:(value,quality) => saveVideo(value,quality,context),
       onSource:({reused,candidate}) => {
-        if (!currentOperation(context)) return;
-        showVideo(work,candidate,context);
+        if (!currentSource(context)) return;
+        progressEvent(context,'complete','local-file');
+        showVideo(work,candidate,context,candidate.size);
+        if (reused) progressEvent(context,'reuse','download','本地视频','已复用 · 完整文件大小已核对');
         el('downloadState').textContent = reused ? '正在使用已下载的完整视频，无需重复下载。' : '视频已保存到“下载 / 抖音独立导出”，文件大小已核对。';
         status(reused ? '已复用本地视频，正在提取文案…' : '视频已保存，正在提取文案…');
       }
@@ -357,6 +483,8 @@ async function start(mode, existing = false, operation = null) {
       throw error;
     }
     assertOperation(context);
+    progressEvent(context,'complete','submit','本地服务已确认任务 ID');
+    progressEvent(context,'observeJob',job);
     op.jobId = job.id;
     const ref = {id:job.id,workId:work.id};
     volatileTaskRef = persist('lastTranscription',ref) ? null : ref;
@@ -364,7 +492,7 @@ async function start(mode, existing = false, operation = null) {
     retryAction = () => resumeKnownJob(ref);
     resetTerms();
     await followJob(ref,context);
-  } catch (error) { if (currentOperation(context)) fail(error); }
+  } catch (error) { if (currentOperation(context)) { progressEvent(context,'fail',error); if (currentSource(context)) fail(error); } }
   finally { if (currentOperation(context)) busy(false); }
 }
 function currentOutput() {
@@ -414,28 +542,37 @@ el('exportSrt').addEventListener('click', () => exportTranscript('srt'));
 el('copy').addEventListener('click', async () => {
   if (!transcript) return;
   if (editor?.composing) { el('copyState').textContent = '正在输入，请完成当前文字后再复制。'; return; }
-  const text = currentOutput().text, jobId = transcript.id;
+  const text = currentOutput().text, jobId = transcript.id, revision = editRevision;
   try {
     await navigator.clipboard.writeText(text);
     if (!disposed && transcript?.id === jobId) el('copyState').textContent = currentOutput().text === text ? '已复制当前文案。' : '已复制点击时的文案；之后的修改尚未复制。';
   }
   catch {
     if (disposed || transcript?.id !== jobId) return;
-    el('transcriptText').focus(); el('transcriptText').select(); el('copyState').textContent = '已选中全文，请按系统复制快捷键复制。';
+    if (!editor?.composing && editRevision === revision && currentOutput().text === text) {
+      el('transcriptText').focus(); el('transcriptText').select(); el('copyState').textContent = '已选中全文，请按系统复制快捷键复制。';
+    } else el('copyState').textContent = '自动复制未成功；当前输入仍保留，请完成输入后手动选择并复制。';
   }
 });
 async function resumeKnownJob(ref) {
   if (running || disposed || pendingResult) return;
   const context = operationContext();
+  const previousProgress = taskProgress.view();
+  if (previousProgress.taskId === ref?.id && previousProgress.sourceVideoId === ref?.workId && previousProgress.state !== 'idle') {
+    progressContext = context; renderProgress(context);
+  } else beginProgress('transcript',context,true,ref || {});
+  if (cardWorkId && cardWorkId !== ref?.workId) resetVideo();
   retryAction = () => resumeKnownJob(ref); el('retry').hidden = true;
   busy(true);
   try {
     if (!/^[a-f0-9]{32}$/.test(ref?.id || '') || !/^\d{10,30}$/.test(ref?.workId || '')) throw new Error('没有可恢复的识别任务。');
-    await connectLocalService({onState: text => { if (currentOperation(context)) status(text); }});
-    assertOperation(context); await followJob(ref,context);
+    await connectLocalService({onState: text => { if (currentSource(context)) status(text); }});
+    assertOperation(context);
+    if (currentSource(context)) el('serviceHelp').hidden = true;
+    await followJob(ref,context);
   } catch (error) {
     if (!error.jobFailed && /^[a-f0-9]{32}$/.test(ref?.id || '')) error.jobUncertain = true;
-    if (currentOperation(context)) fail(error);
+    if (currentOperation(context)) { progressEvent(context,'fail',error); if (currentSource(context)) fail(error); }
   }
   finally { if (currentOperation(context)) busy(false); }
 }
@@ -457,7 +594,7 @@ el('enableTerms').addEventListener('change',() => {
 });
 function sourceChanged() {
   sourceRevision += 1; resetTerms();
-  el('result').hidden = true; el('videoEmpty').hidden = false;
+  resetVideo(); taskProgress.reset(); progressContext = null; el('taskProgress').hidden = true;
   if (!running) {
     retryAction = null; pendingTabId = null; el('retry').hidden = true; el('showPage').hidden = true; el('taskSource').hidden = true;
     status('来源已变更，等待下载或提取。已有当前稿仍保留。');
@@ -475,10 +612,11 @@ el('checkConnection').addEventListener('click',async() => {
   finally { el('checkConnection').disabled = false; }
 });
 function editResult(result) {
-  if (result.pending) { el('saveState').textContent = '输入中 · 尚未保存'; return; }
+  if (result.pending) { saveStatus('输入中 · 尚未保存','pending'); return; }
   if (result.changed) {
     draft = result.draft; unmappedText = null; editRevision += 1; stopAt = null; el('reviewAudio').pause(); saveDraft();
   }
+  else restoreSaveStatus();
   if (result.warning) el('copyState').textContent = result.warning;
 }
 for (const [id,target] of [['transcriptText',() => 'full'],['segmentText',() => segmentIndex]]) {
@@ -488,7 +626,7 @@ for (const [id,target] of [['transcriptText',() => 'full'],['segmentText',() => 
     try { editResult(editor[method](target(),field,event)); }
     catch(error) {
       unmappedText = id === 'transcriptText' ? field.value : draft.blocks.map((block,index) => index === segmentIndex ? field.value : block.text).join('\n');
-      editRevision += 1; el('saveState').textContent = '修改尚未保存';
+      editRevision += 1; saveStatus('修改尚未保存','warning');
       el('copyState').textContent = error.message + ' 当前输入保留，可复制或导出 TXT。';
     }
   };
@@ -504,7 +642,16 @@ for (const [id,target] of [['transcriptText',() => 'full'],['segmentText',() => 
 }
 el('confirmSegment').addEventListener('change',() => {
   if (!draft || editor?.composing) return;
+  if (unmappedText !== null) {
+    el('confirmSegment').checked = draft.blocks[segmentIndex].confirmed;
+    el('copyState').textContent = '当前输入尚未完成时间映射，已保留输入；请先复制或导出 TXT，暂不能更新核对记录。';
+    return;
+  }
   draft.blocks[segmentIndex].confirmed = el('confirmSegment').checked; editor.sync(draft); editRevision += 1; saveDraft();
+});
+el('retrySave').addEventListener('click',() => {
+  if (!draft || editor?.composing || unmappedText !== null) return;
+  if (saveDraft()) el('copyState').textContent = '当前稿已重新保存到本机。';
 });
 el('reviewDetails').addEventListener('toggle',() => {
   if (el('reviewDetails').open && transcript) loadAudio(transcript);
@@ -546,13 +693,19 @@ refreshTabs().catch(() => status('无法读取抖音页面列表。'));
 
 // Navigation opens existing UI; it never creates a new processing task.
 el('appVersion').textContent = 'v' + chrome.runtime.getManifest().version;
-function openSettings() { el('settingsPanel').open = true; el('settingsPanel').scrollIntoView({block:'nearest'}); }
+function openSettings() { el('settingsPanel').open = true; el('settingsPanel').scrollIntoView({block:'nearest'}); el('settingsPanel').querySelector?.('summary')?.focus(); }
 el('openSettings').addEventListener('click',openSettings);
-el('openServiceHelp').addEventListener('click',() => { el('serviceHelp').hidden = false; el('serviceHelp').open = true; el('serviceHelp').scrollIntoView({block:'nearest'}); });
+el('openServiceHelp').addEventListener('click',() => { el('serviceHelp').hidden = false; el('serviceHelp').open = true; el('serviceHelp').scrollIntoView({block:'nearest'}); el('serviceHelp').querySelector?.('summary')?.focus(); });
 el('recentDraft').addEventListener('click',() => {
   if (draft) { el('transcriptText').focus(); return; }
   openSettings(); el('recentState').textContent = readSaved('lastTranscription') ? '有上次识别任务，可尝试恢复。' : '还没有可恢复的最近文案。';
 });
+function expandSource(expanded) {
+  el('sourceInput').dataset.expanded = String(expanded);
+  el('expandSource').setAttribute?.('aria-expanded',String(expanded));
+  el('expandSource').textContent = expanded ? '收起输入' : '展开输入';
+}
+el('expandSource').addEventListener('click',() => expandSource(el('sourceInput').dataset.expanded !== 'true'));
 el('applyResult').addEventListener('click',() => {
   if (!pendingResult || running) return;
   if (editor?.composing || unmappedText !== null) { el('copyState').textContent = '请先完成当前文字输入，再载入新文案。'; return; }
@@ -568,9 +721,13 @@ el('acknowledgeSubmission').addEventListener('click',() => {
   status('已允许手动重新提交。请确认上次任务已核对，再点击提取文案。','waiting');
 });
 document.addEventListener?.('keydown',event => {
-  if (event.key !== 'Escape' || !el('existingPages').open) return;
-  el('existingPages').open = false;
-  el('existingPages').querySelector?.('summary')?.focus();
+  if (event.key !== 'Escape' || event.isComposing || event.keyCode === 229) return;
+  if (el('existingPages').open) {
+    el('existingPages').open = false;
+    el('existingPages').querySelector?.('summary')?.focus();
+  } else if (el('sourceInput').dataset.expanded === 'true') {
+    expandSource(false); el('expandSource').focus();
+  }
 });
 globalThis.addEventListener?.('pagehide',event => {
   if (event.persisted) return;

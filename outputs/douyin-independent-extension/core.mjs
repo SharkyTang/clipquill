@@ -85,10 +85,25 @@ export function capturePage() {
   if (typeof work?.awemeId !== 'string' || work.awemeId !== expected) return {error: '初始化数据不是当前作品；请在原作品页面刷新后重试。'};
   const video = work.video;
   if (!video || !Array.isArray(video.bitRateList)) return {error: '这条作品没有受支持的视频数据。'};
+  // Optional display metadata stays bound to this exact verified work. This
+  // function is serialized into the page, so the small URL filter is local.
+  const imageHosts = ['p3-pc-sign.douyinpic.com', 'p9-pc-sign.douyinpic.com', 'p3-pc.douyinpic.com'];
+  const imageURLs = values => [...new Set(values.slice(0, 16).flatMap(value => {
+    if (typeof value !== 'string' || !value || value.length > 8192 || /[\x00-\x20\x7f]/.test(value)) return [];
+    try {
+      const url = new URL(value);
+      return url.protocol === 'https:' && !url.username && !url.password && !url.port && imageHosts.includes(url.hostname) ? [url.href] : [];
+    } catch { return []; }
+  }))].slice(0, 6);
+  const list = value => Array.isArray(value) ? value.slice(0, 6) : [];
+  const author = work.authorInfo;
   return {
     id: work.awemeId, pageURL: location.href,
     title: String(work.itemTitle || work.desc || '').slice(0, 600),
     durationMs: video.duration,
+    coverURLs: imageURLs([video.cover, ...list(video.coverUrlList), video.originCover, ...list(video.originCoverUrlList)]),
+    authorName: typeof author?.nickname === 'string' ? author.nickname.replace(/[\x00-\x1f\x7f]/g, '').trim().slice(0, 120) : null,
+    avatarURLs: imageURLs([...list(author?.avatarThumb?.urlList), author?.avatarUri]),
     webpageDownloadEnabled: typeof work.download?.allowDownload === 'boolean' ? work.download.allowDownload : null,
     variants: video.bitRateList.map(v => ({
       width: v.width, height: v.height, size: v.dataSize, format: v.format || v.videoFormat,

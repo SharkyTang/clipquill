@@ -74,6 +74,32 @@ test('SPA stale initialization fails closed even if another work is present', ()
   const data = {app: {videoDetail: {awemeId: '1111111111111111111'}}, recommendation: {awemeId: id, video: {}}};
   assert.ok(capture(data).error);
 });
+test('capture exposes bounded optional image and author labels from the actual page field shape', () => {
+  const cover = 'https://p3-pc-sign.douyinpic.com/cover.jpg?opaque=kept';
+  const fallback = 'https://p9-pc-sign.douyinpic.com/cover.jpg';
+  const avatar = 'https://p3-pc.douyinpic.com/avatar.jpg';
+  const data = {app:{videoDetail:{awemeId:id,desc:'目标',authorInfo:{nickname:'真实作者',uid:'PRIVATE_UID',secUid:'PRIVATE_SEC_UID',secret:true,avatarThumb:{urlList:[avatar]},avatarUri:avatar},video:{duration:1000,bitRateList:[],cover,coverUrlList:[cover],originCover:cover,originCoverUrlList:[fallback]}}}};
+  const result = capture(data);
+  assert.deepEqual([...result.coverURLs], [cover, fallback]);
+  assert.deepEqual([...result.avatarURLs], [avatar]);
+  assert.equal(result.authorName, '真实作者');
+  assert.ok(!JSON.stringify(result).includes('PRIVATE_'));
+  const missing = capture({app:{videoDetail:{awemeId:id,video:{duration:1000,bitRateList:[]}}}});
+  assert.deepEqual([...missing.coverURLs], []);
+  assert.deepEqual([...missing.avatarURLs], []);
+  assert.equal(missing.authorName, null);
+});
+test('optional display fields reject unsafe images and bound untrusted author text', () => {
+  const hostile = ['javascript:alert(1)','data:image/png;base64,abc','https://user:pass@p3-pc-sign.douyinpic.com/a','http://p3-pc-sign.douyinpic.com/a','https://p3-pc-sign.douyinpic.com.evil.test/a','https://unseen.douyinpic.com/a'];
+  const data = {app:{videoDetail:{awemeId:id,authorInfo:{nickname:'\u0000<img onerror=alert(1)>'.repeat(20),avatarThumb:{urlList:hostile}},video:{duration:1000,bitRateList:[],cover:hostile[0],coverUrlList:hostile,originCoverUrlList:hostile}}}};
+  const result = capture(data);
+  assert.deepEqual([...result.coverURLs], []);
+  assert.deepEqual([...result.avatarURLs], []);
+  assert.equal(result.authorName.length, 120);
+  assert.ok(!result.authorName.includes('\u0000'));
+  // Text is returned as a label, never interpolated into HTML or evaluated.
+  assert.ok(result.authorName.startsWith('<img onerror=alert(1)>'));
+});
 test('canonical page without SSR work is distinguished from a different work',()=>{
   assert.equal(capture({app:{user:{}}}).code,'MISSING_WORK');
   assert.equal(capture({app:{videoDetail:{awemeId:'1111111111111111111'}}}).code,undefined);

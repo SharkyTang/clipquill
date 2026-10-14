@@ -76,6 +76,19 @@ test('poll-error fixture fails only the first GET and retry returns the same tas
   assert.equal(fixture.ClipQuillFixture.inspect().polls,2); assert.equal(fixture.calls.length,0);
 });
 
+test('running and failed visual scenarios are isolated and report explicit test stages', async () => {
+  for (const scenario of ['running','failed']) {
+    const fixture=load('?state=complete&scenario='+scenario);
+    const {job}=await submit(fixture);
+    await requestFor(fixture)('/jobs/'+job.id);
+    const result=await requestFor(fixture)('/jobs/'+job.id);
+    assert.equal(result.status,scenario === 'running' ? 'running' : 'failed');
+    assert.match(result.error || result.stage,/隔离测试/);
+    assert.equal(fixture.ClipQuillFixture.inspect().submissions,1);
+    assert.equal(fixture.calls.length,0);
+  }
+});
+
 test('submit-unknown fixture rejects POST once and does not cause automatic source redownload or resubmission', async () => {
   const fixture = load('?state=complete&scenario=submit-unknown');
   await assert.rejects(submit(fixture),error=>error.code==='SERVICE_UNAVAILABLE');
