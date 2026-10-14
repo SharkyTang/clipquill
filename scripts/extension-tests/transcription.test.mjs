@@ -27,7 +27,7 @@ test('local requests never send credentials and surface service and connection f
     assert.deepEqual(JSON.parse(options.body),payload);
     return {ok:true,json:async()=>({})};
   });
-  await assert.rejects(localRequest('/health',undefined,async()=>{throw new TypeError('Failed to fetch');}),/启动本地文案服务/);
+  await assert.rejects(localRequest('/health',undefined,async()=>{throw new TypeError('Failed to fetch');}),error=>error.code === 'SERVICE_UNAVAILABLE');
   await assert.rejects(localRequest('/jobs',payload,async()=>({ok:false,json:async()=>({error:'已有任务'})})),/已有任务/);
   await assert.rejects(localRequest('/jobs',payload,async()=>({ok:false,json:async()=>({error:'文件丢失',code:'SOURCE_MISSING'})})),error=>error.code === 'SOURCE_MISSING');
 });

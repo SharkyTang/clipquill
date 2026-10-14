@@ -1,9 +1,10 @@
 import {shareURL, workIdFromURL, selectMP4, filenameFor} from './core.mjs';
-import {localRequest, localAudio, checkService, checkJob, completedFile} from './transcription.mjs';
+import {localRequest, localAudio, checkJob, completedFile} from './transcription.mjs';
 import {startVideoTranscription} from './video.mjs';
 import {createReview, timestamp} from './review.mjs';
 import {createDraft, saveableDraft, draftText, editFullText, editBlock, draftSegments, exportDraft} from './draft.mjs';
 import {migrateTerms, activeTerms} from './settings.mjs';
+import {ensureLocalService} from './service.mjs';
 const el = id => document.getElementById(id);
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 const downloads = new Map();
@@ -20,9 +21,10 @@ function status(text, state = 'waiting') { el('status').textContent = text; el('
 function fail(error) {
   const message = error.message || '处理失败，请重试。';
   status('未完成：' + message, 'error');
+  el('retry').textContent = error.serviceStartup ? '重试启动并提取' : '重试本次操作';
   el('retry').hidden = !retryAction;
   if (Number.isInteger(error.tabId)) { pendingTabId = error.tabId; el('showPage').hidden = false; }
-  if (/服务|模型|连接|本地处理/.test(message)) { el('serviceHelp').hidden = false; el('serviceHelp').open = true; }
+  if (error.serviceStartup || /服务|模型|连接|本地处理|助手|安装/.test(message)) { el('serviceHelp').hidden = false; el('serviceHelp').open = true; }
 }
 function busy(value) {
   running = value;
@@ -94,12 +96,12 @@ function showTranscript(job, offline = false) {
   persist('result-v1-' + job.id,job);
   persist('lastCompleted-v1',{id:job.id,workId:job.workId});
   updatePreview();
-  status(offline ? '已恢复本机当前稿，可编辑、复制和导出。回听需要启动本地服务。' : '文案已完成，可直接编辑、复制或导出。','complete');
+  status(offline ? '已恢复本机当前稿，可编辑、复制和导出。回听时会自动连接本地助手。' : '文案已完成，可直接编辑、复制或导出。','complete');
   if (audioURL) URL.revokeObjectURL(audioURL);
   audioURL = null; cachedAudioJob = null;
   el('reviewAudio').pause(); el('reviewAudio').removeAttribute('src'); el('reviewAudio').load(); stopAt = null;
   el('playSegment').disabled = true;
-  el('audioState').textContent = '展开后加载原音；本地服务需要保持运行。';
+  el('audioState').textContent = '展开后自动连接本地助手并加载原音。';
 }
 function updatePreview() {
   if (!draft) return;
@@ -141,6 +143,7 @@ async function loadAudio(job) {
   if (!review || !job.hasAudio) return;
   el('audioState').textContent = '正在加载本地回听音频…';
   try {
+    await ensureLocalService({onState: text => { el('audioState').textContent = text; }});
     const blob = await localAudio(job.id);
     if (transcript?.id !== job.id) return;
     audioURL = URL.createObjectURL(blob); cachedAudioJob = job.id; el('reviewAudio').src = audioURL;
@@ -154,7 +157,7 @@ async function followJob(ref) {
     if (job.status === 'complete') { showTranscript(job); return; }
     if (job.status === 'failed') throw new Error(job.error || '语音识别失败。');
     const elapsed = Math.max(0, Math.round(Date.now() / 1000 - job.startedAt));
-    status(`正在提取文案，已运行 ${elapsed} 秒。请保持本地服务运行。`);
+    status(`正在提取文案，已运行 ${elapsed} 秒。请保持工具页打开。`);
     await pause(2000);
   }
   throw new Error('等待识别超时，可稍后点击“恢复上次文案”查看。');
@@ -170,8 +173,11 @@ async function start(mode, existing = false, operation = null) {
   // Existing valid output remains available until a new completed result replaces it.
   try {
     const url = op.existing ? null : shareURL(op.link);
-    if (op.mode === 'transcribe') { status('正在连接本地文案服务…'); checkService(await localRequest('/health'),true); el('serviceHelp').hidden = true; }
     if (op.existing && !op.tabId) throw new Error('请先打开并选择目标抖音作品。');
+    if (op.mode === 'transcribe') {
+      await ensureLocalService({onState: text => status(text)});
+      el('serviceHelp').hidden = true;
+    }
     status('正在后台读取抖音作品，请保留此工具页。');
     const {work} = await parserRequest('resolve-douyin', {url, existingTabId: op.existing ? op.tabId : null, retry: Boolean(operation)});
     if (op.mode === 'transcribe' && work.durationMs > 3600000) throw new Error('本地文案原型支持一小时以内的视频。');
@@ -241,6 +247,7 @@ async function restoreLast() {
   try {
     const ref = JSON.parse(localStorage.getItem('lastTranscription'));
     if (!/^[a-f0-9]{32}$/.test(ref?.id || '') || !/^\d{10,30}$/.test(ref?.workId || '')) throw new Error('没有可恢复的识别任务。');
+    await ensureLocalService({onState: text => status(text)});
     await followJob(ref);
   } catch (error) { fail(error); }
   finally { busy(false); }
@@ -264,7 +271,10 @@ el('link').addEventListener('input',resetTerms);
 el('tabs').addEventListener('change',resetTerms);
 el('checkConnection').addEventListener('click',async() => {
   el('checkConnection').disabled = true; el('connectionState').textContent = '正在检查…';
-  try { checkService(await localRequest('/health'),true); el('connectionState').textContent = '文案服务已就绪，可以重试提取。'; }
+  try {
+    await ensureLocalService({onState: text => { el('connectionState').textContent = text; }});
+    el('connectionState').textContent = '文案服务已就绪，可以重试提取。';
+  }
   catch(error) { el('connectionState').textContent = error.message; }
   finally { el('checkConnection').disabled = false; }
 });

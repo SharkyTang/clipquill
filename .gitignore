@@ -20,7 +20,9 @@ outputs/*
 !outputs/douyin-independent-extension-v0.1.2.zip
 !outputs/douyin-independent-extension-v0.1.3.zip
 !outputs/douyin-independent-extension-v0.1.4.zip
+!outputs/douyin-independent-extension-v0.1.5.zip
 !outputs/启动本地文案服务.command
+!outputs/首次安装.command
 !outputs/asr-model-provenance.json
 !outputs/*.md
 

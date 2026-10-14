@@ -251,20 +251,21 @@ class Jobs:
 
 
 def make_handler(jobs, origin):
+    origins = frozenset([origin] if isinstance(origin, str) else origin)
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
             pass  # Do not log local filenames or recognized speech.
 
         def authorized(self):
             host = '127.0.0.1:' + str(self.server.server_port)
-            if self.headers.get('Host') != host or self.headers.get('Origin') != origin:
+            if self.headers.get('Host') != host or self.headers.get('Origin') not in origins:
                 raise RequestError('此本地服务仅供已配置的扩展使用。', 403)
 
         def reply(self, status, value):
             body = json.dumps(value, ensure_ascii=False).encode('utf-8')
             self.send_response(status)
-            if self.headers.get('Origin') == origin:
-                self.send_header('Access-Control-Allow-Origin', origin)
+            if self.headers.get('Origin') in origins:
+                self.send_header('Access-Control-Allow-Origin', self.headers['Origin'])
                 self.send_header('Vary', 'Origin')
             self.send_header('Content-Type', 'application/json; charset=utf-8')
             self.send_header('Cache-Control', 'no-store')
@@ -277,7 +278,7 @@ def make_handler(jobs, origin):
             try:
                 self.authorized()
                 self.send_response(204)
-                self.send_header('Access-Control-Allow-Origin', origin)
+                self.send_header('Access-Control-Allow-Origin', self.headers['Origin'])
                 self.send_header('Access-Control-Allow-Methods', 'GET, POST')
                 self.send_header('Access-Control-Allow-Headers', 'Content-Type')
                 self.send_header('Vary', 'Origin')
@@ -289,13 +290,13 @@ def make_handler(jobs, origin):
             try:
                 self.authorized()
                 if self.path == '/health':
-                    self.reply(200, {'service': 'douyin-local-transcription', 'protocol': 1, 'ready': runtime_ready(), 'videoReuse': True})
+                    self.reply(200, {'service': 'douyin-local-transcription', 'protocol': 1, 'ready': runtime_ready(), 'videoReuse': True, 'busy': bool(jobs.active)})
                 elif re.fullmatch(r'/jobs/[0-9a-f]{32}', self.path):
                     self.reply(200, jobs.get(self.path.split('/')[-1]))
                 elif re.fullmatch(r'/jobs/[0-9a-f]{32}/audio', self.path):
                     body = jobs.audio(self.path.split('/')[2])
                     self.send_response(200)
-                    self.send_header('Access-Control-Allow-Origin', origin)
+                    self.send_header('Access-Control-Allow-Origin', self.headers['Origin'])
                     self.send_header('Vary', 'Origin')
                     self.send_header('Content-Type', 'audio/mp4')
                     self.send_header('Cache-Control', 'no-store')
@@ -339,15 +340,19 @@ def make_handler(jobs, origin):
 
 def main():
     parser = argparse.ArgumentParser(description='启动抖音扩展的离线文案服务，只监听本机')
-    parser.add_argument('--extension-id', default=DEFAULT_EXTENSION)
+    parser.add_argument('--extension-id', action='append', help='可重复指定安装程序配对的扩展')
     parser.add_argument('--port', type=int, default=8766)
     args = parser.parse_args()
-    if not re.fullmatch(r'[a-p]{32}', args.extension_id):
+    extensions = args.extension_id or [DEFAULT_EXTENSION]
+    if not all(re.fullmatch(r'[a-p]{32}', value) for value in extensions):
         parser.error('Chrome 扩展 ID 格式不正确')
     jobs = Jobs(Path.home() / 'Downloads/抖音独立导出', ROOT / 'work/transcription-jobs', ROOT / 'outputs/extension-transcripts')
-    server = ThreadingHTTPServer(('127.0.0.1', args.port), make_handler(jobs, 'chrome-extension://' + args.extension_id))
+    server = ThreadingHTTPServer(('127.0.0.1', args.port), make_handler(jobs, ['chrome-extension://' + value for value in extensions]))
     server.daemon_threads = True
     print('本地文案服务已启动，只监听 127.0.0.1:' + str(args.port) + '。关闭此窗口或按 Ctrl+C 可停止。', flush=True)
+    def terminate(*_):
+        raise KeyboardInterrupt()
+    signal.signal(signal.SIGTERM, terminate)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

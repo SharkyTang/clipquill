@@ -36,11 +36,11 @@ class BridgeTests(unittest.TestCase):
         with self.assertRaises(bridge.RequestError):
             bridge.validate_source({**self.payload, 'path': str(link)}, self.root)
 
-    def request(self, method, path, headers=None, body=b'', jobs=None):
+    def request(self, method, path, headers=None, body=b'', jobs=None, origins=ORIGIN):
         jobs = jobs if jobs is not None else Mock()
         jobs.download_root = self.root
         jobs.start.return_value = {'id': 'a'*32, 'workId': ID, 'status': 'running'}
-        cls = bridge.make_handler(jobs, ORIGIN)
+        cls = bridge.make_handler(jobs, origins)
         handler = object.__new__(cls)
         handler.server = SimpleNamespace(server_port=8766)
         handler.headers = Message()
@@ -138,6 +138,16 @@ class BridgeTests(unittest.TestCase):
         with patch.object(bridge, 'runtime_ready', return_value=True):
             response, _ = self.request('GET', '/health', {'Host':'127.0.0.1:8766','Origin':ORIGIN})
         self.assertTrue(json.loads(response['body'])['videoReuse'])
+
+    def test_exact_installation_pairs_share_the_service_without_widening_cors(self):
+        origins = [ORIGIN, 'chrome-extension://' + 'b' * 32]
+        with patch.object(bridge, 'runtime_ready', return_value=True):
+            for origin in origins:
+                response, _ = self.request('GET', '/health', {'Host':'127.0.0.1:8766','Origin':origin}, origins=origins)
+                self.assertEqual(response['status'], 200)
+                self.assertEqual(response['headers']['Access-Control-Allow-Origin'], origin)
+        response, _ = self.request('GET', '/health', {'Host':'127.0.0.1:8766','Origin':'chrome-extension://' + 'c' * 32}, origins=origins)
+        self.assertEqual(response['status'], 403)
 
     def test_cors_rejects_other_websites_missing_origin_and_dns_rebinding(self):
         for headers in [{}, {'Host':'127.0.0.1:8766','Origin':'https://evil.test'},

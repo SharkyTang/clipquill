@@ -5,9 +5,9 @@ export async function localAudio(jobId, fetcher = fetch) {
   if (!response.ok || response.headers.get('Content-Type') !== 'audio/mp4') throw new Error('回听音频加载失败。请检查本地服务。');
   return response.blob();
 }
-export async function localRequest(path, payload, fetcher = fetch) {
+export async function localRequest(path, payload, fetcher = fetch, timeoutMs = 12000) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 12000);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetcher(BASE + path, {
       method: payload === undefined ? 'GET' : 'POST', credentials: 'omit', cache: 'no-store', redirect: 'error', signal: controller.signal,
@@ -21,14 +21,18 @@ export async function localRequest(path, payload, fetcher = fetch) {
     }
     return result;
   } catch (error) {
-    if (error.name === 'TypeError' || error.name === 'AbortError') throw new Error('无法连接本地文案服务。请双击项目 outputs 中的“启动本地文案服务.command”，保持服务窗口打开后重试。');
+    if (error.name === 'TypeError' || error.name === 'AbortError') {
+      const unavailable = new Error('无法连接本地文案服务，请重试启动。首次使用请运行“首次安装.command”。');
+      unavailable.code = 'SERVICE_UNAVAILABLE';
+      throw unavailable;
+    }
     throw error;
   } finally { clearTimeout(timer); }
 }
 export function checkService(value, requireVideoReuse = false) {
   if (value?.service !== 'douyin-local-transcription' || value.protocol !== 1) throw new Error('本地端口不是匹配的文案服务。');
-  if (requireVideoReuse && value.videoReuse !== true) throw new Error('本地文案服务需要更新。请关闭原服务窗口，再双击项目 outputs 中的“启动本地文案服务.command”后重试。');
-  if (!value.ready) throw new Error('本地模型或音频工具未准备好，请查看服务说明。');
+  if (requireVideoReuse && value.videoReuse !== true) throw new Error('本地文案服务需要更新。请关闭原服务窗口，重新运行“首次安装.command”后重试。');
+  if (!value.ready) throw new Error('本地模型或音频工具未准备好，请重新运行“首次安装.command”完成安装。');
 }
 export function checkJob(job, expectedId) {
   if (!job || !/^[a-f0-9]{32}$/.test(job.id || '') || job.workId !== expectedId) throw new Error('转写任务与目标作品不一致。');

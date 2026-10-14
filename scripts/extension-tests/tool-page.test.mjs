@@ -8,12 +8,13 @@ import * as video from '../../outputs/douyin-independent-extension/video.mjs';
 import * as review from '../../outputs/douyin-independent-extension/review.mjs';
 import * as draft from '../../outputs/douyin-independent-extension/draft.mjs';
 import * as settings from '../../outputs/douyin-independent-extension/settings.mjs';
+import * as service from '../../outputs/douyin-independent-extension/service.mjs';
 
 const directory = new URL('../../outputs/douyin-independent-extension/', import.meta.url);
 const html = readFileSync(new URL('tool.html',directory),'utf8');
 const source = readFileSync(new URL('tool.js',directory),'utf8').replace(/^import .*;\n/gm,'');
 const id = '7689864994510343451', url = `https://www.douyin.com/video/${id}`;
-function render(saved = new Map(), response = {ok:true,tabId:10}) {
+function render(saved = new Map(), response = {ok:true,tabId:10}, overrides = {}) {
   const elements = new Map(), messages = [], focus = [];
   for (const match of html.matchAll(/\bid="([^"]+)"[^>]*>/g)) {
     const handlers = new Map();
@@ -32,7 +33,7 @@ function render(saved = new Map(), response = {ok:true,tabId:10}) {
     windows: {async update() {}},
     downloads: {onChanged: {addListener() {}}, async download() { return 1; }, async search() { return [{state:'complete',fileSize:123,filename:'/downloads/a.mp4'}]; }}
   };
-  vm.runInNewContext(source,{...core,...transcription,...video,...review,...draft,...settings, document,localStorage,chrome,URL,setTimeout,clearTimeout,console}, {filename:'tool.js'});
+  vm.runInNewContext(source,{...core,...transcription,...video,...review,...draft,...settings,...service,...overrides, document,localStorage,chrome,URL,setTimeout,clearTimeout,console}, {filename:'tool.js'});
   return {elements,messages,focus,saved};
 }
 test('first-use login advice is visible without opening any page; dismiss survives reopening', async () => {
@@ -41,6 +42,28 @@ test('first-use login advice is visible without opening any page; dismiss surviv
   await f.elements.get('dismissLoginTip').click();
   assert.equal(f.elements.get('loginTip').hidden,true);
   assert.equal(render(f.saved).elements.get('loginTip').hidden,true);
+});
+test('transcription startup failure offers a retry that keeps the original link and continues automatically', async () => {
+  const events = [];
+  const work = {id,title:'test',durationMs:1000,variants:[]};
+  let attempts = 0;
+  const f = render(new Map(),message => { events.push('parse'); return {ok:true,tabId:10,work}; },{
+    async ensureLocalService() {
+      events.push('ensure');
+      if (++attempts === 1) throw Object.assign(new Error('本地助手启动失败'),{serviceStartup:true});
+    },
+    async startVideoTranscription() { events.push('transcribe'); throw new Error('stop fixture after job submission'); }
+  });
+  f.elements.get('link').value = url;
+  await f.elements.get('transcribe').click();
+  assert.equal(f.elements.get('retry').hidden,false);
+  assert.equal(f.elements.get('retry').textContent,'重试启动并提取');
+  assert.deepEqual(events,['ensure']);
+  f.elements.get('link').value = 'https://www.douyin.com/video/1111111111111111111';
+  await f.elements.get('retry').click();
+  assert.deepEqual(events,['ensure','ensure','parse','transcribe']);
+  assert.equal(f.messages[0].url,url);
+  assert.equal(f.elements.get('retry').textContent,'重试本次操作');
 });
 test('login opens only on an explicit first-use button click', async () => {
   const f = render();
