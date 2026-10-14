@@ -1,8 +1,12 @@
 # ClipQuill
 
-## UI 重构：S3 视觉检查点（2026-10-14）
+## UI 重构：S4–S6 实施与验收（2026-10-14）
 
-当前扩展源码已接入蓝紫羽毛笔品牌、浅色/深色/跟随系统主题，以及宽屏工作区和窄屏单栏布局。唯一入口仍为浏览器扩展标签页，下载、提取、编辑、恢复与 TXT/SRT 沿用原实现。详见 [S0–S3 交接](docs/ui-redesign/handoff.md) 和 [验证报告与实现截图](docs/ui-redesign/qa-report.md)。目前 94 项 JavaScript、53 项 Python 检查通过；截图来自明确隔离的 HTTP fixture，真实 Chrome 新界面端到端仍待验收。S4–S6 未开始，现有 ZIP 和安装目录未更新。
+本轮已接入任务状态/恢复/防覆盖、中文组合输入与撤销映射保护，保留已确认的蓝紫品牌和双主题。143 项 JavaScript、53 项 Python 检查通过，并提供最新隔离实现截图；真实 Chrome 扩展、系统 IME、剪贴板、原音和 200% 缩放门槛仍未完成。详见 [当前交接](docs/ui-redesign/handoff.md) 和 [验证报告](docs/ui-redesign/s4-s6-qa-report.md)。当前交付为源码；ZIP/安装目录未自动更新，尚未打包发布。
+
+## 历史记录：S3 视觉检查点（2026-10-14）
+
+S3 检查点接入了蓝紫羽毛笔品牌、浅色/深色/跟随系统主题，以及宽屏工作区和窄屏单栏布局。唯一入口为浏览器扩展标签页，下载、提取、编辑、恢复与 TXT/SRT 沿用原实现。历史证据见 [S0–S3 实施](docs/ui-redesign/implementation-log.md) 和 [验证报告与实现截图](docs/ui-redesign/qa-report.md)。当时 94 项 JavaScript、53 项 Python 检查通过；截图来自明确隔离的 HTTP fixture。S4–S6 的最新状态以上节为准，现有 ZIP 和安装目录未更新。
 
 ## 当前仓库版本：v0.1.5（2026-10-14）
 

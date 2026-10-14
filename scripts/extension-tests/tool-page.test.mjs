@@ -9,6 +9,7 @@ import * as review from '../../outputs/douyin-independent-extension/review.mjs';
 import * as draft from '../../outputs/douyin-independent-extension/draft.mjs';
 import * as settings from '../../outputs/douyin-independent-extension/settings.mjs';
 import * as service from '../../outputs/douyin-independent-extension/service.mjs';
+import * as editor from '../../outputs/douyin-independent-extension/editor.mjs';
 
 const directory = new URL('../../outputs/douyin-independent-extension/', import.meta.url);
 const html = readFileSync(new URL('tool.html',directory),'utf8');
@@ -53,7 +54,7 @@ function render(saved = new Map(), response = {ok:true,tabId:10}, overrides = {}
     copied.push(text);
   }}};
   const timers = (...args) => { const timer = setTimeout(...args); timer.unref?.(); return timer; };
-  vm.runInNewContext(source,{...core,...transcription,...video,...review,...draft,...settings,...service,...overrides,
+  vm.runInNewContext(source,{...core,...transcription,...video,...review,...draft,...settings,...service,...editor,...overrides,
     document,localStorage,chrome,navigator,Blob,URL:FixtureURL,setTimeout:timers,clearTimeout,console}, {filename:'tool.js'});
   return {elements,messages,focus,saved,queries,downloads,copied,exports,writes,failWrites};
 }
@@ -66,7 +67,7 @@ test('first-use login advice is visible without opening any page; dismiss surviv
 });
 test('transcription startup failure offers a retry that keeps the original link and continues automatically', async () => {
   const events = [];
-  const work = {id,title:'test',durationMs:1000,variants:[]};
+  const work = {id,title:'test',durationMs:1000,variants:[{width:1280,height:720,size:123,format:'mp4',isH265:0,urls:['https://v3-dy-o.zjcdn.com/test.mp4']}]};
   let attempts = 0;
   const f = render(new Map(),message => { events.push('parse'); return {ok:true,tabId:10,work}; },{
     async ensureLocalService() {
@@ -244,4 +245,14 @@ test('cached-result storage failure never reports a saved draft or blocks its of
   assert.equal(f.elements.get('transcriptSection').hidden,false);
   assert.match(f.elements.get('saveState').textContent,/保存失败/);
   assert.match(f.elements.get('copyState').textContent,/自动保存失败/);
+});
+
+test('corrupt current-draft JSON is retained with a readable fallback warning and recovery copy', () => {
+  const saved = cachedDraft(), key = 'draft-v1-' + completedJob.id, raw = '{broken current draft';
+  saved.set(key,raw);
+  const f = render(saved);
+  assert.equal(f.elements.get('transcriptText').value,completedJob.text);
+  assert.match(f.elements.get('copyState').textContent,/无法读取/);
+  assert.equal(saved.get(key),raw,'opening the page must not overwrite a corrupt original');
+  assert.equal(JSON.parse(saved.get('draft-rejected-v1-'+completedJob.id)),raw);
 });

@@ -1,0 +1,272 @@
+{
+  "date": "2026-10-14",
+  "baseline_head": "81f0672f73607fc54541ee83e3c8eb27ed7f5e15",
+  "scope": "S4/S5 implementation and executable S6 checks; real extension gate incomplete",
+  "environment": {
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "node": "v26.0.0",
+    "python": "3.9.6"
+  },
+  "commands": [
+    {
+      "command": "node --test scripts/extension-tests/*.test.mjs",
+      "tests": 143,
+      "passed": 143,
+      "failed": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "log_sha256": "544602dbc2511674ac8d1fb2fc7f5f9d06aaba0486c56d6baf1f4afcc5cbd7e6"
+    },
+    {
+      "command": "PYTHONPATH=scripts python3 -B -m unittest discover -s scripts/tests -v",
+      "tests": 53,
+      "passed": 53,
+      "failed": 0,
+      "log_sha256": "8a2c35a1291b692fcc32804c25dcd788c1d3d7b305b5397f51eab02be40206af"
+    },
+    {
+      "command": "node --check outputs/douyin-independent-extension/tool.js && node --check outputs/douyin-independent-extension/editor.mjs && node --check outputs/douyin-independent-extension/theme-init.js && node --check scripts/ui-preview/fixture.js",
+      "result": "passed"
+    },
+    {
+      "command": "git diff --check",
+      "result": "passed"
+    }
+  ],
+  "protected_files": [
+    {
+      "path": "outputs/douyin-independent-extension/background.js",
+      "sha256": "19756bbefc0c3c78ff1d4e4c1d9fda6cf0fec268b8633b25a636195a69fec14b",
+      "equals_s3_head": true
+    },
+    {
+      "path": "outputs/douyin-independent-extension/access.mjs",
+      "sha256": "d51fdba68f566be214e22146a9f67954586644a26d28256233a37cd4362e2cdd",
+      "equals_s3_head": true
+    },
+    {
+      "path": "outputs/douyin-independent-extension/core.mjs",
+      "sha256": "6daf5fa104c4ef07134077153ad98a6f0d4da18807da3c353a0ebdf890209dc1",
+      "equals_s3_head": true
+    },
+    {
+      "path": "outputs/douyin-independent-extension/draft.mjs",
+      "sha256": "cecfc7f32ffe18f2f4d83ccc8ffe290f47f7fbe08c106badca9ef4602d109231",
+      "equals_s3_head": true
+    },
+    {
+      "path": "outputs/douyin-independent-extension/navigation.mjs",
+      "sha256": "c69cd6e1f9f6666eb3ef87f0627920b970138df641bf21d5d30d1fecf548c72f",
+      "equals_s3_head": true
+    },
+    {
+      "path": "outputs/douyin-independent-extension/parser-page.mjs",
+      "sha256": "91582d017b1d444fdb579e170fdfb47d129a8c0ab31299913f4c5ed5a90bb6b2",
+      "equals_s3_head": true
+    },
+    {
+      "path": "outputs/douyin-independent-extension/review.mjs",
+      "sha256": "e7c935f4a68d0bb7a40956721f813ee7f9df222b975ac0a011dd2eda7ab39781",
+      "equals_s3_head": true
+    },
+    {
+      "path": "outputs/douyin-independent-extension/service.mjs",
+      "sha256": "edcf67633eee27cbdcdd4034cca296eb075aff36e96baebd45751f0311441ed6",
+      "equals_s3_head": true
+    },
+    {
+      "path": "outputs/douyin-independent-extension/settings.mjs",
+      "sha256": "9646301224fc988fbe52fb98390bb2ec6c2cfcbbc4d6fdb8c12cb8a0966e50a1",
+      "equals_s3_head": true
+    },
+    {
+      "path": "outputs/douyin-independent-extension/transcription.mjs",
+      "sha256": "eb6b41dd3352cf89a2da5248c9a91c21dbe23d115813040e15152ccede2664f3",
+      "equals_s3_head": true
+    },
+    {
+      "path": "outputs/douyin-independent-extension/video.mjs",
+      "sha256": "486f2738d005b7b55fe944f61231888bc6f1cf339d2bda6777ca0fca4e3cedf2",
+      "equals_s3_head": true
+    },
+    {
+      "path": "outputs/douyin-independent-extension/manifest.json",
+      "sha256": "83f036025e18b044b1731486831bdb953df2a2e5f8db9de27920aee464d5ffce",
+      "equals_s3_head": true
+    },
+    {
+      "path": "outputs/douyin-independent-extension/theme-init.js",
+      "sha256": "6a4c37c79997fd0255ea1f567807042ab37536874997934839a936cada73b2ad",
+      "equals_s3_head": true
+    }
+  ],
+  "production_fixture_reference": false,
+  "read_only_local_service": {
+    "port": 8766,
+    "health_paired_origins": 2,
+    "paired_status": 200,
+    "missing_or_unrelated_origin_status": 403,
+    "ready": true,
+    "videoReuse": true,
+    "new_task_submitted": false
+  },
+  "http_browser": {
+    "origin": "http://127.0.0.1:4176",
+    "result": "isolated implementation only",
+    "checks": [
+      "theme preserves text/selection",
+      "native undo/redo preserves 12 source cues",
+      "pending result does not overwrite draft",
+      "GET-only known-task recovery",
+      "unknown submission blocks blind retry",
+      "save quota error retains draft",
+      "actual TXT/SRT match current 299 character draft and 12 source endpoints",
+      "Escape restores source summary focus",
+      "skip link focus",
+      "inspected console errors/warnings empty"
+    ],
+    "no_horizontal_overflow_viewports": [
+      [
+        320,
+        700
+      ],
+      [
+        390,
+        844
+      ],
+      [
+        768,
+        900
+      ],
+      [
+        1024,
+        600
+      ],
+      [
+        1024,
+        768
+      ],
+      [
+        1280,
+        800
+      ],
+      [
+        1440,
+        900
+      ],
+      [
+        1536,
+        1024
+      ],
+      [
+        1920,
+        1080
+      ]
+    ]
+  },
+  "screenshots": [
+    {
+      "path": "docs/ui-redesign/screenshots/s6-comparison-dark-1536x1024-fixture.jpg",
+      "format": "JPEG",
+      "width": 1536,
+      "height": 1024,
+      "fixture_only": true,
+      "sha256": "3a05f0b0b5a5f58bda4728000ee39bf3c598d8321297332e02f5b091a47ae449"
+    },
+    {
+      "path": "docs/ui-redesign/screenshots/s6-main-dark-1440x900-fixture.jpg",
+      "format": "JPEG",
+      "width": 1440,
+      "height": 900,
+      "fixture_only": true,
+      "sha256": "e1b83375b59c5117d9b26d08a913b20aa13a1500688bf7f346a48dd2b844eb16"
+    },
+    {
+      "path": "docs/ui-redesign/screenshots/s6-main-light-1024x768-fixture.jpg",
+      "format": "JPEG",
+      "width": 1024,
+      "height": 768,
+      "fixture_only": true,
+      "sha256": "cb34fd9bffc7a7331f45a5a1ff486fcbde5051ce985eea8a2e966ddb69b6106c"
+    },
+    {
+      "path": "docs/ui-redesign/screenshots/s6-main-light-1440x900-fixture.jpg",
+      "format": "JPEG",
+      "width": 1440,
+      "height": 900,
+      "fixture_only": true,
+      "sha256": "75627e351e0d9493927ad4ad4ea2d9c54d7b4a1ff742513abb2dd6380a5c6a44"
+    },
+    {
+      "path": "docs/ui-redesign/screenshots/s6-narrow-editor-light-390x844-fixture.jpg",
+      "format": "JPEG",
+      "width": 390,
+      "height": 844,
+      "fixture_only": true,
+      "sha256": "c6651af7cd6f3e41bc4414946c859af4bae9451368cc8017faf6ce3487ba431d"
+    },
+    {
+      "path": "docs/ui-redesign/screenshots/s6-narrow-light-390x844-fixture.jpg",
+      "format": "JPEG",
+      "width": 390,
+      "height": 844,
+      "fixture_only": true,
+      "sha256": "302aaedd98bfeb11209c1e9dd58302878d21ff779d2afc57149c3737f93576aa"
+    },
+    {
+      "path": "docs/ui-redesign/screenshots/s6-pending-dark-1440x900-fixture.jpg",
+      "format": "JPEG",
+      "width": 1440,
+      "height": 900,
+      "fixture_only": true,
+      "sha256": "010b9d813d5f16b3126209052ef496b3a9f68a1edd80aa1f70653bc57c01c25a"
+    },
+    {
+      "path": "docs/ui-redesign/screenshots/s6-progress-dark-1440x900-fixture.jpg",
+      "format": "JPEG",
+      "width": 1440,
+      "height": 900,
+      "fixture_only": true,
+      "sha256": "d71f3a715ea9f83a3c62a6df364c09990db2120029bfd2773bc127adfe1979ac"
+    },
+    {
+      "path": "docs/ui-redesign/screenshots/s6-query-unknown-light-1440x900-fixture.jpg",
+      "format": "JPEG",
+      "width": 1440,
+      "height": 900,
+      "fixture_only": true,
+      "sha256": "4076f3d52abab02b6a7644d6af06c25c62295b66664a0ecd8c151b0085362c62"
+    },
+    {
+      "path": "docs/ui-redesign/screenshots/s6-save-error-light-1440x900-fixture.jpg",
+      "format": "JPEG",
+      "width": 1440,
+      "height": 900,
+      "fixture_only": true,
+      "sha256": "a68c768f2711663c48fa3bb2b9d877997446ec4713b99a3ebc74b6064750eac7"
+    },
+    {
+      "path": "docs/ui-redesign/screenshots/s6-submit-unknown-dark-1440x900-fixture.jpg",
+      "format": "JPEG",
+      "width": 1440,
+      "height": 900,
+      "fixture_only": true,
+      "sha256": "3225615d768b8718ce10423b246b060d6c1f3fdbffa97bd7edadc830f46bd0a2"
+    }
+  ],
+  "unverified": [
+    "real Chrome MV3 CSP/permissions/messages/native messaging/storage",
+    "real source parsing/download/reuse/recognition/audio/model UI",
+    "system Chinese IME",
+    "system clipboard contents",
+    "actual 200 percent zoom",
+    "OS theme first paint and real cross-extension-page sync",
+    "screen reader/reduced motion/native toolbar icons/other systems"
+  ],
+  "protocol_limitations": [
+    "unknown POST without job ref cannot be recovered or proven globally idempotent by existing API",
+    "in-page uncertainty guard is not persisted across reload",
+    "mapping snapshot budget is per active history stack; at least one oversized current snapshot may remain"
+  ],
+  "no_push_publish_install_or_data_migration": true
+}

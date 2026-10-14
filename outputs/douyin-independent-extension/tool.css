@@ -98,3 +98,9 @@ main{display:flex;flex-direction:column;min-width:0;min-height:0}
 
 @media(min-width:1024px){#transcriptSection{scroll-padding-top:100px}.editor-toolbar{top:-19px}}
 @media(min-width:1024px) and (max-width:1279px){.editor-toolbar{top:-16px}}
+/* Real task/result notices, using the same semantic colors in both themes. */
+.workspace-notice{flex-shrink:0;padding:14px 18px;background:var(--cq-warning-surface);color:var(--cq-warning);border:1px solid var(--cq-warning);border-radius:9px;font-size:12px;line-height:1.8}
+.editor-card>.workspace-notice{margin:14px 20px 0}.workspace-notice button{font-size:12px;min-height:38px;color:var(--cq-text)}.workspace-notice button.primary{color:var(--cq-on-primary)}
+#submissionNotice{margin-top:12px;padding:12px}#submissionNotice button{margin-top:10px;font-size:11px}#taskSource{font-size:11px;margin-top:8px;max-height:72px;overflow:auto}
+#status[data-state="unknown"]{color:var(--cq-warning);background:var(--cq-warning-surface)}
+@media(max-width:767px){.editor-card>.workspace-notice{margin:12px 12px 0;padding:12px}.workspace-notice .row{align-items:stretch}.workspace-notice button{flex:1}}

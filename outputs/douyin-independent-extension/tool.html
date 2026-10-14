@@ -27,7 +27,7 @@
       <div class="topbar-controls">
         <span id="serviceStatus" class="service-status" title="点击提取文案时会自动连接本地助手">本地服务 · 待连接</span>
         <label class="theme-label" for="themePreference">主题</label>
-        <select id="themePreference" aria-describedby="themeState"><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select>
+        <select id="themePreference" aria-label="主题" aria-describedby="themeState"><option value="system">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select>
       </div>
     </header>
     <p id="themeState" class="theme-state" role="status" aria-live="polite"></p>
@@ -43,7 +43,7 @@
             <div id="videoEmpty" class="video-empty"><span class="icon i-link" aria-hidden="true"></span><strong>从一条视频开始</strong><p>粘贴分享内容，或选择已打开的作品。</p></div>
             <section id="result" hidden><h3 id="title"></h3><p class="hint">已读取作品信息</p><details class="metadata-details"><summary>作品详细信息</summary><p id="facts"></p></details><p id="downloadState"></p></section>
             <div class="task-actions"><button id="transcribe" class="primary"><span class="icon i-document" aria-hidden="true"></span><span>提取文案<small>本地识别 · 自动复用已有视频</small></span></button><button id="start"><span class="icon i-download" aria-hidden="true"></span><span>下载视频<small>保存到本机下载文件夹</small></span></button></div>
-            <div class="task-status"><h3>处理状态</h3><p id="status" role="status" aria-live="polite" data-state="waiting">等待视频链接。</p><div class="row"><button id="retry" hidden>重试本次操作</button><button id="showPage" hidden>打开待处理的抖音页面</button></div></div>
+            <div class="task-status"><h3>处理状态</h3><p id="taskSource" class="hint" hidden></p><p id="status" role="status" aria-live="polite" data-state="waiting">等待视频链接。</p><div class="row"><button id="retry" hidden>重试本次操作</button><button id="showPage" hidden>打开待处理的抖音页面</button></div><div id="submissionNotice" class="workspace-notice" hidden><p>上次提交可能已被服务接收。请先核对本地服务与已有结果，避免重复识别。</p><button id="acknowledgeSubmission">已核对，允许再次提交</button></div></div>
             <p class="hint keep-open">下载和提取时，请保持此工具页打开。</p>
           </section>
           <details id="options" class="card"><summary>辅助选项</summary><div class="details-content">
@@ -63,6 +63,7 @@
         </aside>
         <section class="card editor-card" aria-labelledby="editorHeading">
           <div class="editor-heading"><div class="editor-tab"><span class="icon i-document" aria-hidden="true"></span><h2 id="editorHeading">视频文案</h2></div><span class="editor-local">本机工作区</span></div>
+          <aside id="pendingResultNotice" class="workspace-notice" aria-label="新文案等待载入" hidden><p id="pendingResultText" role="status"></p><div class="row"><button id="applyResult" class="primary">保存当前稿并载入新文案</button><button id="dismissResult">保留当前稿</button></div></aside>
           <div id="emptyTranscript" class="empty-transcript"><img src="assets/brand/clipquill-logo.svg" alt="" width="64" height="64"><h2>让视频里的想法，成为文字</h2><p>选择视频后点击「提取文案」。<br>完成后可在这里编辑、回听、复制和导出。</p><span>语音识别由配套本地服务完成</span></div>
           <section id="transcriptSection" hidden>
             <div class="draft-heading"><div><label for="transcriptText">当前文案 <span>可直接编辑</span></label><p id="transcriptFacts"></p></div><span id="saveState" role="status">当前稿</span></div>
